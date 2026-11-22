@@ -75,6 +75,7 @@ textarea:focus,input:focus{outline:none;border-color:var(--accent)}
 /* ---------- home ---------- */
 #home{min-height:60vh;display:grid;place-items:center;text-align:center}
 #home p{max-width:40ch;margin:12px auto 0;color:var(--muted)}
+.login{width:min(420px,100%);text-align:left}.login h1{font-size:28px}.login p{margin:0}#loginErr{color:var(--alarm);min-height:1.2em}
 
 /* ---------- console ---------- */
 .con-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
@@ -427,14 +428,21 @@ tr:last-child td{border-bottom:none}
 <main>
   <!-- HOME -->
   <section class="view wrap" id="home" hidden>
-    <div><h1>발표 화면의 QR을 찍어 들어와 주세요</h1><p>수업 시간에 화면에 뜨는 QR이나 교수자가 안내한 주소로 들어오면 그 수업의 피드백 보드가 열립니다.</p></div>
+    <div id="homeMsg"><h1>발표 화면의 QR을 찍어 들어와 주세요</h1><p>수업 시간에 화면에 뜨는 QR이나 교수자가 안내한 주소로 들어오면 그 수업의 피드백 보드가 열립니다.</p></div>
+    <form class="card login stack" id="loginForm" hidden autocomplete="off">
+      <h1>관리 콘솔</h1>
+      <p class="muted">관리키를 한 번 입력하면 이 브라우저에서는 다음부터 바로 열립니다.</p>
+      <label class="fld"><span>관리키</span><input type="password" id="loginKey" required autocomplete="off"></label>
+      <button class="btn primary" type="submit" id="loginBtn">열기</button>
+      <p class="small" id="loginErr" role="alert"></p>
+    </form>
   </section>
 
   <!-- CONSOLE -->
   <section class="view wrap" id="console" hidden>
     <div class="con-head">
       <div><h1>내 수업</h1><p class="muted">수업을 만들고 명단을 넣으면 발표 진행 화면과 학생용 피드백 보드가 함께 생깁니다. 명단, 진행 상황, 메모는 모두 구글 시트 관리 대장에 저장되어 어느 컴퓨터에서 열어도 이어집니다.</p></div>
-      <button class="btn primary" id="newClassBtn" type="button">새 수업 만들기</button>
+      <div class="acts"><button class="btn primary" id="newClassBtn" type="button">새 수업 만들기</button><button class="btn small" id="logoutBtn" type="button" title="공용 컴퓨터라면 수업이 끝난 뒤 눌러 주세요">이 브라우저에서 로그아웃</button></div>
     </div>
     <form class="card editor stack" id="editor" hidden autocomplete="off">
       <h2 id="edTitle">새 수업</h2>
@@ -697,10 +705,19 @@ tr:last-child td{border-bottom:none}
 const API_URL = 'https://script.google.com/macros/s/AKfycbzw6EByZXCXt2m1LvL-FWzt1JKnlUmBNyPzmrXov_n5yi6Ek3t79nWS6dTjnNDnly2E/exec';
 const Q = new URLSearchParams(location.search);
 const LIVE = !Q.has('demo');
-/* 관리키는 주소창에서 바로 지워 화면 공유 때 노출되지 않게 하고, 이 탭에서만 기억합니다. */
+/* 관리키는 주소창에서 바로 지워 화면 공유 때 노출되지 않게 하고, 이 브라우저에 기억합니다.
+   주소창에는 ?console만 남기므로 그 상태로 북마크해도 관리 콘솔이 열립니다. */
+const KEY_STORE = 'pfb-admin';
 let adminKey = Q.get('admin') || '';
-try { if (adminKey) sessionStorage.setItem('pfb-admin', adminKey); else adminKey = sessionStorage.getItem('pfb-admin') || ''; } catch (e) {}
-if (Q.has('admin')) { Q.delete('admin'); try { history.replaceState(null, '', location.pathname + (Q.toString() ? '?' + Q.toString() : '') + location.hash); } catch (e) {} }
+try {
+  if (adminKey) localStorage.setItem(KEY_STORE, adminKey);
+  else adminKey = localStorage.getItem(KEY_STORE) || sessionStorage.getItem(KEY_STORE) || '';
+} catch (e) {}
+if (Q.has('admin')) {
+  Q.delete('admin'); if (!Q.get('cls')) Q.set('console', '');
+  try { history.replaceState(null, '', location.pathname + '?' + Q.toString().replace(/console=(&|$)/, 'console$1') + location.hash); } catch (e) {}
+}
+const WANT_CONSOLE = Q.has('console');
 const CFG = { admin: adminKey, c: Q.get('cls') || '', p: Q.get('p') || '', view: Q.get('view') || '', m: Q.get('m') || '' };
 const ADMIN = LIVE ? CFG.admin : 'preview';
 const BASE = location.origin + location.pathname;
@@ -1584,7 +1601,22 @@ function renderBoard() {
 if (ADMIN && CFG.c && CFG.m === 'stage') openStage(CFG.c);
 else if (CFG.c) openBoard(CFG.c, CFG.view === 'board' ? 'students' : CFG.view === 'rank' ? 'rank' : 'write', CFG.p);
 else if (ADMIN) openConsole();
+else if (WANT_CONSOLE) { setMode('home'); $('#homeMsg').hidden = true; $('#loginForm').hidden = false; $('#loginKey').focus(); }
 else setMode('home');
+$('#logoutBtn').addEventListener('click', () => {
+  try { localStorage.removeItem(KEY_STORE); sessionStorage.removeItem(KEY_STORE); } catch (e) {}
+  location.replace(location.pathname + '?console');
+});
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const k = $('#loginKey').value.trim(); if (!k) return;
+  const btn = $('#loginBtn'); btn.disabled = true; $('#loginErr').textContent = '';
+  try {
+    if (LIVE) await api('listClasses', k);
+    try { localStorage.setItem(KEY_STORE, k); } catch (err) {}
+    location.replace(location.pathname + '?console' + (LIVE ? '' : '&demo=1'));
+  } catch (err) { $('#loginErr').textContent = /관리 권한/.test(errMsg(err)) ? '관리키가 맞지 않습니다. 다시 확인해 주세요.' : errMsg(err); btn.disabled = false; }
+});
 })();
 </script>
 </body>
