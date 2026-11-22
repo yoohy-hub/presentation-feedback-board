@@ -1,0 +1,1591 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>수강생 발표 &amp; 피드백 메모 보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* Layout: one web app, four modes. Deliberately single dark theme (the user asked for black with vivid color): console and board read as a high-contrast night program; stage mode is a blacked-out theater for projection. */
+:root{
+  --bg:#0a0a0a; --surface:#151515; --surface-2:#222222; --ink:#fafafa; --muted:#b0b0b0; --line:#333333;
+  --accent:#6cb6ff; --accent-ink:#0a0a0a; --accent-soft:rgba(108,182,255,.14); --bar:#6cb6ff; --track:#262626;
+  --spot:#ffd60a; --cue:#2ee6d6; --alarm:#ff453a; --curtain:#d1123f; --curtain-dark:#4a0717; --beam:rgba(255,214,10,.26);
+  --stage:#000000; --stage-2:#141414; --stage-3:#1f1f1f; --s-ink:#fafafa; --s-muted:#b0b0b0; --s-line:rgba(255,255,255,.16);
+  --f-display:"Black Han Sans","Noto Sans KR","Apple SD Gothic Neo",system-ui,sans-serif;
+  --f-num:"Big Shoulders Display","Oswald","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;word-break:keep-all;overflow-wrap:break-word}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+[hidden]{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.muted{color:var(--muted)} .small{font-size:13px}
+h1{font-family:var(--f-display);font-weight:400;font-size:clamp(28px,4vw,44px);line-height:1.15;margin:0;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:400;font-size:clamp(22px,3vw,28px);line-height:1.2;margin:0;text-wrap:balance}
+h3{font-size:14px;margin:0;letter-spacing:.04em}
+
+/* ---------- top bar ---------- */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:25;background:var(--surface);border-bottom:1px solid var(--line)}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:8px 18px;flex-wrap:wrap;padding-block:10px 0}
+.brand{display:flex;flex-direction:column;min-width:0;padding-bottom:10px}
+.brand strong{font-family:var(--f-display);font-weight:400;font-size:20px;line-height:1.2;color:var(--spot)}
+.brand small{font-size:11px;letter-spacing:.08em;color:var(--muted)}
+.tabs{display:flex;gap:4px}
+.tab{background:none;border:none;border-bottom:3px solid transparent;padding:8px 12px 10px;font-weight:700;cursor:pointer;color:var(--muted)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+@media (max-width:560px){.tabs{width:100%}.tab{flex:1;padding-inline:4px}}
+.tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-bottom:10px}
+.tbtn{background:transparent;color:inherit;border:1px solid var(--line);border-radius:6px;padding:6px 11px;font-weight:500;font-size:13px;cursor:pointer}
+.tbtn:hover{border-color:var(--muted)}
+.tbtn[aria-pressed="false"]{opacity:.6}
+.tbtn:disabled{opacity:.35;cursor:not-allowed}
+.pill{font-family:var(--f-num);font-weight:700;font-size:19px;letter-spacing:.04em;padding:1px 12px;border:1px solid var(--line);border-radius:999px;font-variant-numeric:tabular-nums;color:var(--spot)}
+.demo{background:var(--accent-soft);color:var(--accent);font-size:13px;padding-block:8px;border-top:1px solid var(--line)}
+
+/* ---------- shared controls ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 16px;font-weight:700;cursor:pointer;text-decoration:none;color:inherit}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:7px 12px;font-size:13px}
+.btn.danger{background:var(--alarm);border-color:var(--alarm);color:#1a0d0f}
+.btn.del{margin-left:auto;color:var(--alarm);border-color:rgba(255,69,58,.5)}
+.btn.del:hover{border-color:var(--alarm)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.kbd{font-size:11px;font-weight:700;letter-spacing:.06em;padding:2px 6px;border-radius:4px;border:1px solid currentColor;opacity:.75;line-height:1.3}
+select,input[type="search"],input[type="text"],input[type="number"],input[type="url"]{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 12px;max-width:100%}
+textarea{width:100%;resize:vertical;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;line-height:1.7}
+textarea:focus,input:focus{outline:none;border-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:130px;overflow:auto}
+.chip{font-size:13px;padding:3px 9px;border-radius:999px;background:var(--surface-2)}
+.empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:10px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;font-weight:700;z-index:80;max-width:calc(100% - 32px);text-align:center}
+.view{padding-block:22px 60px}
+
+/* ---------- home ---------- */
+#home{min-height:60vh;display:grid;place-items:center;text-align:center}
+#home p{max-width:40ch;margin:12px auto 0;color:var(--muted)}
+
+/* ---------- console ---------- */
+.con-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.con-head p{margin:6px 0 0;max-width:62ch}
+.classgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.ccard{display:flex;flex-direction:column;gap:10px}
+.ccard .nm{font-family:var(--f-display);font-size:24px;line-height:1.15;color:var(--spot)}
+.ccard .meta{display:flex;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ccard .meta b{color:var(--ink)}
+.ccard .acts{display:flex;gap:6px;flex-wrap:wrap}
+.linkbox{display:flex;gap:6px;align-items:center}
+.linkbox input{flex:1;min-width:0;font-size:12px;padding:7px 9px}
+.editor{margin-top:18px}
+.ed-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:22px}
+@media (max-width:820px){.ed-grid{grid-template-columns:minmax(0,1fr)}}
+.fld{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:14px}
+.fld small{font-weight:400;color:var(--muted);font-size:12px}
+.fld input{font-weight:400}
+#edRoster{min-height:280px}
+.phase-set{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:8px 10px;align-items:end}
+.phase-set label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.phase-set input{width:100%;color:var(--ink)}
+.note{border:1px dashed var(--line);background:var(--surface-2);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.6;margin:0}
+.cta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+/* ---------- board ---------- */
+.seg{display:inline-flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-weight:500;cursor:pointer;font-size:14px}
+.seg button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.seg label{position:relative}
+.seg label span{display:inline-block;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 16px;font-weight:700}
+.seg label input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.seg label input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.seg label input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.heart{display:inline-flex;align-items:center;gap:8px;border:1.5px solid var(--accent);color:var(--accent);background:transparent;border-radius:999px;padding:9px 18px;font-weight:700;cursor:pointer}
+.heart[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.heart b{font-family:var(--f-num);font-size:20px;line-height:1}
+.write{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:820px){.write{grid-template-columns:minmax(0,1fr)}}
+.who-pick{display:flex;flex-direction:column;gap:6px}
+.who-pick label{font-size:13px;color:var(--muted);font-weight:700}
+.hero-name{font-family:var(--f-display);color:var(--spot);font-size:clamp(40px,8vw,64px);line-height:1.05;margin:0;overflow-wrap:anywhere}
+.hero-stats{display:flex;gap:14px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:14px}
+.hero-stats b{font-family:var(--f-num);font-size:22px;color:var(--ink);margin-right:3px;font-variant-numeric:tabular-nums}
+#memoText{min-height:130px}
+.form-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.notice{font-size:12px;color:var(--muted);margin:0}
+.list-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.memos{display:flex;flex-direction:column;gap:10px}
+.memo{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.memo-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.tag{font-weight:700;color:var(--cue);background:rgba(46,230,214,.12);padding:2px 8px;border-radius:4px}
+.memo-top .whoname{font-weight:700;color:var(--ink)}
+.memo-top time{margin-left:auto}
+.memo-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.memo-foot{display:flex;gap:8px;align-items:center}
+.empathy{border:1px solid var(--line);background:none;border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer;color:var(--muted);font-variant-numeric:tabular-nums}
+.empathy[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:700}
+.hide{border:none;background:none;color:var(--muted);font-size:12px;text-decoration:underline;cursor:pointer;margin-left:auto}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-block:14px 18px}
+.toolbar input{flex:1;min-width:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.scard{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.scard:hover{border-color:var(--accent)}
+.scard .nm{font-family:var(--f-display);font-size:22px;line-height:1.1}
+.scard .nums{display:flex;gap:12px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.scard .nums b{color:var(--ink);font-family:var(--f-num);font-size:18px;margin-right:2px}
+.scard .cats{font-size:12px;color:var(--muted)}
+.scard.none{opacity:.65}
+.detail-head{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.back{align-self:flex-start;background:none;border:none;color:var(--muted);cursor:pointer;padding:0;font-weight:700}
+.dbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-block:14px 22px}
+@media (max-width:700px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.tile span{font-size:12px;color:var(--muted);letter-spacing:.04em}
+.tile b{display:block;font-family:var(--f-num);font-weight:900;font-size:38px;line-height:1.05;font-variant-numeric:tabular-nums}
+.tile b small{font-size:18px;color:var(--muted);font-weight:700}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+@media (max-width:820px){.charts{grid-template-columns:minmax(0,1fr)}}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 18px 10px}
+.chart p{margin:2px 0 12px;font-size:13px;color:var(--muted)}
+.rlist{list-style:none;margin:0;padding:0}
+.rrow{display:grid;grid-template-columns:28px 70px minmax(0,1fr) 34px;gap:8px;align-items:center;padding:3px 4px;border-radius:6px;cursor:pointer}
+.rrow:hover,.rrow:focus-visible{background:var(--accent-soft)}
+.rk{font-family:var(--f-num);font-weight:700;font-size:15px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.rrow.top .rk{color:var(--spot)}
+.rn{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rb{height:10px;background:var(--track);border-radius:0 4px 4px 0;position:relative;overflow:hidden}
+.rb i{position:absolute;inset:0 auto 0 0;background:var(--bar);border-radius:0 4px 4px 0}
+.rv{font-size:14px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.rv.zero{color:var(--muted);font-weight:400}
+.best{margin-top:22px}
+.best .memos{margin-top:12px}
+.updated{font-size:12px;color:var(--muted)}
+
+
+/* ---------- Q&A (student) ---------- */
+#qa{max-width:780px}
+.qa-top{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.qa-top h1{color:var(--spot)}
+.eyebrow-q{font-size:12px;letter-spacing:.16em;color:var(--cue);font-weight:700}
+#qaText{min-height:110px}
+.qa-list-head{margin-block:22px 12px;align-items:center}
+.q-card .q-text{font-size:16px}
+.badge-ans{font-weight:700;color:#0a0a0a;background:var(--cue);padding:2px 8px;border-radius:4px;font-size:12px}
+.q-card.answered{opacity:.6}
+.lbl-strong{font-weight:700}
+.trans{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.trans button{align-self:flex-start;background:none;border:none;padding:0;color:var(--cue);font-size:12px;cursor:pointer;text-decoration:underline}
+.trans .orig{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);border-left:2px solid var(--line);padding-left:8px}
+.lang-box{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:8px;background:rgba(46,230,214,.10);border:1px solid rgba(46,230,214,.45);font-size:14px;line-height:1.5}
+.lang-box b{color:var(--cue);font-size:13px;letter-spacing:.04em}
+.lang-box .lang-sub{font-size:12px;color:var(--muted)}
+
+/* ================= STAGE MODE ================= */
+html:has(body[data-mode="stage"]),body[data-mode="stage"]{height:100%}
+body[data-mode="stage"]{--surface:var(--stage);--ink:var(--s-ink);--muted:var(--s-muted);--line:var(--s-line);--bg:var(--stage);
+  background:var(--stage);color:var(--s-ink);display:flex;flex-direction:column;overflow:hidden;color-scheme:dark}
+body[data-mode="stage"] main{position:relative;flex:1;min-height:0}
+body[data-mode="stage"] .topbar{background:var(--stage)}
+body[data-mode="stage"]::before{background:var(--stage)}
+#stage{position:absolute;inset:0;padding:0}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));overflow:hidden}
+.s-btn{display:inline-flex;align-items:center;gap:10px;border-radius:8px;padding:12px 20px;font-weight:700;font-size:16px;cursor:pointer;border:1px solid var(--s-line);background:transparent;color:var(--s-ink);transition:transform .15s,border-color .15s}
+.s-btn:hover{border-color:var(--s-muted);transform:translateY(-1px)}
+.s-btn.primary{background:var(--spot);color:var(--stage);border-color:var(--spot)}
+.s-btn.small{padding:8px 14px;font-size:14px}
+.s-btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+
+#s-draw{padding:0}
+.stagebox{position:absolute;inset:0;overflow:hidden;background:radial-gradient(ellipse 60% 40% at 50% 104%,rgba(255,214,10,.16),transparent 70%),radial-gradient(ellipse 90% 75% at 50% 0%,var(--stage-3),var(--stage) 70%)}
+.stagebox::after{content:"";position:absolute;inset:0;z-index:2;background:#050203;opacity:0;transition:opacity .9s;pointer-events:none}
+.stagebox.tense::after{opacity:.6}
+.valance{position:absolute;left:0;right:0;top:0;height:clamp(26px,6vh,60px);z-index:6;background:linear-gradient(to bottom,rgba(0,0,0,.35),transparent 60%),repeating-linear-gradient(90deg,var(--curtain-dark) 0 10px,var(--curtain) 10px 34px,var(--curtain-dark) 34px 44px);-webkit-mask:radial-gradient(22px 12px at 22px 100%,#0000 96%,#000) 0 0/44px 100%;mask:radial-gradient(22px 12px at 22px 100%,#0000 96%,#000) 0 0/44px 100%}
+.curtain{position:absolute;top:0;bottom:0;width:clamp(34px,13vw,230px);z-index:5;background:linear-gradient(90deg,rgba(0,0,0,.4),transparent 30%,transparent 70%,rgba(0,0,0,.5)),repeating-linear-gradient(90deg,var(--curtain-dark) 0,var(--curtain) 1.4vw,var(--curtain-dark) 2.8vw);transition:transform 1.2s cubic-bezier(.7,0,.2,1)}
+.curtain.l{left:0} .curtain.r{right:0}
+.stagebox.drawing .curtain.l{transform:translateX(35%)} .stagebox.drawing .curtain.r{transform:translateX(-35%)}
+.stagebox.revealed .curtain.l{transform:translateX(-72%)} .stagebox.revealed .curtain.r{transform:translateX(72%)}
+.beam{position:absolute;top:-4%;width:min(44vw,600px);height:118%;z-index:3;background:linear-gradient(to bottom,var(--beam),transparent 85%);clip-path:polygon(47% 0,53% 0,100% 100%,0 100%);transform-origin:50% 0;opacity:.2;filter:blur(5px);transition:opacity .6s,transform 1s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+.beam.l{left:calc(26% - min(22vw,300px));transform:rotate(-22deg)}
+.beam.r{left:calc(74% - min(22vw,300px));transform:rotate(22deg)}
+.stagebox.drawing .beam{opacity:.95}
+.stagebox.drawing .beam.l{animation:sweepL 1.5s ease-in-out infinite alternate}
+.stagebox.drawing .beam.r{animation:sweepR 1.2s ease-in-out infinite alternate}
+@keyframes sweepL{from{transform:rotate(-50deg)}to{transform:rotate(14deg)}}
+@keyframes sweepR{from{transform:rotate(50deg)}to{transform:rotate(-14deg)}}
+.stagebox.revealed .beam{opacity:1}
+.stagebox.revealed .beam.l{transform:rotate(-34deg)} .stagebox.revealed .beam.r{transform:rotate(34deg)}
+.draw-inner{position:relative;z-index:4;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;text-align:center;padding-block:clamp(40px,8vh,90px) 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.draw-inner>*{max-width:min(76vw,1000px)}
+.idle{display:flex;flex-direction:column;align-items:center;gap:26px}
+.ask{font-family:var(--f-display);font-size:clamp(26px,4.4vw,62px);line-height:1.1;margin:0}
+.ask span{color:var(--spot)}
+.ticket-wrap{filter:drop-shadow(0 0 30px rgba(255,214,10,.45));animation:float 2.6s ease-in-out infinite}
+@keyframes float{50%{transform:translateY(-6px) rotate(-1deg)}}
+.ticket{position:relative;font-family:var(--f-display);font-size:clamp(26px,3.6vw,46px);padding:clamp(18px,2.6vw,30px) clamp(40px,5vw,72px);background:var(--spot);color:var(--stage);border:none;cursor:pointer;display:flex;align-items:center;gap:16px;-webkit-mask:radial-gradient(circle 15px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 15px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat;mask:radial-gradient(circle 15px at 0 50%,#0000 97%,#000) left/51% 100% no-repeat,radial-gradient(circle 15px at 100% 50%,#0000 97%,#000) right/51% 100% no-repeat}
+.ticket::after{content:"";position:absolute;inset:8px 24px;border:2px dashed rgba(20,11,14,.35);border-radius:4px;pointer-events:none}
+.ticket .kbd{font-family:var(--f-body);font-size:12px}
+.meta-line{font-size:14px;color:var(--s-muted);letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.reel{--rh:clamp(58px,11vw,150px);position:relative;height:calc(var(--rh) * 3);width:min(76vw,900px);overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 28%,#000 72%,transparent);mask-image:linear-gradient(transparent,#000 28%,#000 72%,transparent)}
+.reel .col{display:flex;flex-direction:column}
+.reel .line{height:var(--rh);display:flex;align-items:center;justify-content:center;font-family:var(--f-display);font-size:calc(var(--rh) * .7);white-space:nowrap;color:var(--s-muted);opacity:.4}
+.reel .line.mid{color:var(--s-ink);opacity:1}
+.reel::before,.reel::after{content:"";position:absolute;left:6%;right:6%;height:2px;background:var(--spot);opacity:.75;z-index:1}
+.reel::before{top:var(--rh)} .reel::after{top:calc(var(--rh) * 2)}
+.reel.hold .line.mid{color:var(--spot);animation:hold .35s ease-in-out infinite alternate}
+@keyframes hold{to{transform:scale(1.06);text-shadow:0 0 30px rgba(255,199,90,.6)}}
+.reel-cap{font-size:14px;letter-spacing:.2em;color:var(--spot)}
+.reveal{display:flex;flex-direction:column;align-items:center;gap:12px}
+.ord{display:flex;align-items:baseline;gap:12px;color:var(--spot)}
+.ord span{font-size:14px;letter-spacing:.2em;font-weight:700}
+.ord b{font-family:var(--f-num);font-weight:900;font-size:clamp(44px,6vw,88px);line-height:1}
+.who{font-family:var(--f-display);font-size:clamp(64px,13vw,210px);line-height:1.02;text-shadow:0 0 50px rgba(255,214,10,.5);overflow-wrap:anywhere;margin:0}
+.reveal.in .who{animation:nameIn 1s cubic-bezier(.2,.8,.2,1)}
+.reveal.in .ord{animation:fadeUp .7s .35s both}
+.reveal.in .actions{animation:fadeUp .7s .7s both}
+@keyframes nameIn{0%{transform:scale(1.8);filter:blur(16px);opacity:0}55%{opacity:1}100%{transform:none;filter:none}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}}
+.actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+
+#s-count{gap:10px;text-align:center;background:radial-gradient(circle at 50% 55%,var(--stage-3),var(--stage) 65%)}
+.cd-lbl{font-size:14px;letter-spacing:.2em;color:var(--s-muted)}
+.cd-who{font-family:var(--f-display);font-size:clamp(28px,4vw,58px)}
+.cd-num{font-family:var(--f-num);font-weight:900;font-size:min(50vh,62vw);line-height:.9;color:var(--spot)}
+.cd-num.go{color:var(--cue)}
+.cd-num.pop{animation:pop .95s cubic-bezier(.2,.8,.2,1) both}
+@keyframes pop{0%{transform:scale(1.9);opacity:0}22%{opacity:1;transform:scale(1)}100%{transform:scale(.88);opacity:.25}}
+
+#s-timer{--pc:var(--spot);gap:clamp(8px,2vh,22px);text-align:center}
+#s-timer[data-phase="2"]{--pc:var(--cue)}
+#s-timer[data-state="alarm"],#s-timer[data-state="over"]{--pc:var(--alarm)}
+#s-timer::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0}
+#s-timer[data-state="alarm"]::before{box-shadow:inset 0 0 16vw rgba(255,75,62,.5);animation:vign 1s ease-in-out infinite}
+#s-timer[data-state="over"]::before{box-shadow:inset 0 0 18vw rgba(255,75,62,.55);opacity:.85}
+@keyframes vign{0%,100%{opacity:.2}50%{opacity:1}}
+.t-who{font-family:var(--f-display);font-size:clamp(22px,3vw,42px)}
+.phases{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.ph{padding:6px 14px;border-radius:999px;border:1px solid var(--s-line);color:var(--s-muted);font-weight:700;font-size:clamp(13px,1.4vw,17px);font-variant-numeric:tabular-nums}
+#s-timer[data-phase="1"] .ph1,#s-timer[data-phase="2"] .ph2{background:var(--pc);color:var(--stage);border-color:var(--pc)}
+#s-timer[data-phase="2"] .ph1{opacity:.5;text-decoration:line-through}
+.phase-label{font-family:var(--f-display);font-size:clamp(26px,4.4vw,64px);color:var(--pc);line-height:1}
+.clock{font-family:var(--f-num);font-weight:900;font-size:min(42vh,32vw);line-height:.84;color:var(--pc);font-variant-numeric:tabular-nums;transition:color .4s,opacity .3s}
+#s-timer[data-state="warn"] .clock,#s-timer[data-state="alarm"] .clock{animation:beat 1s ease-out infinite}
+@keyframes beat{0%{transform:scale(1.05)}35%{transform:scale(1)}}
+#s-timer.paused .clock{opacity:.3}
+.paused-tag{font-size:14px;letter-spacing:.2em;background:var(--stage-3);padding:4px 12px;border-radius:4px}
+.sub{color:var(--s-muted);font-size:clamp(13px,1.4vw,17px);font-variant-numeric:tabular-nums}
+.track,.track-lbl{width:min(1000px,100%);display:grid;gap:6px}
+.seg2{height:12px;border-radius:3px;background:var(--s-line);overflow:hidden;position:relative}
+.seg2 i{position:absolute;inset:0 auto 0 0;width:0;background:var(--spot)}
+.seg2.b i{background:var(--cue)}
+#s-timer[data-state="alarm"] .seg2 i,#s-timer[data-state="over"] .seg2 i{background:var(--alarm)}
+.track-lbl{font-size:12px;color:var(--s-muted);text-align:left}
+.t-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:10}
+.band{width:100%;padding-block:3.5vh;background:var(--cue);color:var(--stage);font-family:var(--f-display);font-size:clamp(32px,6vw,92px);text-align:center;transform:scaleX(0)}
+#cue.show .band{animation:band 2s cubic-bezier(.7,0,.2,1) forwards}
+@keyframes band{0%{transform:scaleX(0)}18%{transform:scaleX(1)}78%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
+.stampbox{font-family:var(--f-num);font-weight:900;font-size:min(30vh,26vw);line-height:1;color:var(--alarm);background:var(--stage);border:max(6px,.6vw) solid var(--alarm);padding:0 3vw;opacity:0;transform:rotate(-8deg) scale(0)}
+#stamp.show .stampbox{animation:stamp 2.4s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes stamp{0%{transform:rotate(-8deg) scale(3);opacity:0}12%{transform:rotate(-8deg) scale(1);opacity:1}78%{opacity:1;transform:rotate(-8deg) scale(1)}100%{opacity:0;transform:rotate(-8deg) scale(1)}}
+
+#s-feedback{gap:20px;text-align:center;overflow:auto;justify-content:safe center}
+.eyebrow{font-size:12px;letter-spacing:.16em;color:var(--spot);font-weight:700}
+.fb-who{font-family:var(--f-display);font-size:clamp(40px,7vw,100px);line-height:1.05;margin:0}
+.used{display:inline-flex;gap:8px;align-items:baseline;font-size:15px;color:var(--s-muted)}
+.used b{font-family:var(--f-num);font-size:30px;color:var(--s-ink);font-variant-numeric:tabular-nums}
+.used.over b{color:var(--alarm)}
+.fb-row{display:flex;gap:22px;align-items:center;justify-content:center;flex-wrap:wrap;width:min(1100px,100%)}
+.fb-cards{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;flex:1 1 320px;max-width:560px}
+.fb-card{border:1px solid var(--s-line);border-radius:12px;padding:14px 20px;background:var(--stage-2);text-align:left;display:flex;flex-direction:column;gap:4px}
+.fb-card h3{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(20px,2.2vw,28px);letter-spacing:0}
+.fb-card p{margin:0;color:var(--s-muted);line-height:1.6}
+.fb-timer{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.fb-clock{font-family:var(--f-num);font-weight:900;font-size:48px;line-height:1;font-variant-numeric:tabular-nums;color:var(--cue)}
+
+#s-done{justify-content:flex-start;overflow:auto}
+.done-wrap{width:min(1080px,100%);display:flex;flex-direction:column;gap:18px;margin-block:auto}
+.board-call{display:flex;gap:clamp(18px,3vw,40px);align-items:center;flex-wrap:wrap;padding:clamp(16px,2.4vw,28px);border:1px solid var(--s-line);border-radius:16px;background:radial-gradient(ellipse at 20% 0%,rgba(108,182,255,.12),transparent 60%),var(--stage-2)}
+.guide{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.guide h2{color:var(--spot);font-size:clamp(24px,2.8vw,38px)}
+.guide-lede{margin:0;line-height:1.7;font-size:clamp(14px,1.3vw,17px)}
+.guide-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:g}
+.guide-steps li{display:grid;grid-template-columns:30px minmax(0,1fr);column-gap:10px;counter-increment:g}
+.guide-steps li::before{content:counter(g);grid-row:span 2;font-family:var(--f-num);font-weight:900;font-size:24px;line-height:1.1;color:var(--spot)}
+.guide-steps b{font-size:clamp(14px,1.3vw,17px)}
+.guide-steps span{color:var(--s-muted);font-size:clamp(13px,1.15vw,15px);line-height:1.6}
+.rec-title{margin:8px 0 0;font-size:13px;letter-spacing:.12em;color:var(--s-muted)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--s-line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--s-line);white-space:nowrap}
+th{font-size:12px;letter-spacing:.1em;color:var(--s-muted);font-weight:700}
+td.n{font-family:var(--f-num);font-weight:700;font-size:20px;color:var(--spot)}
+td.over{color:var(--alarm);font-weight:700}
+tr:last-child td{border-bottom:none}
+#copyText{position:absolute;left:-9999px;top:0;white-space:pre}
+
+/* QR cards */
+.qr-card{background:var(--s-ink);color:var(--stage);border-radius:12px;padding:12px 12px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+.qr-box{width:var(--qs);height:var(--qs);max-width:100%}
+.qr-box canvas,.qr-box img{width:100%!important;height:100%!important;display:block;image-rendering:pixelated}
+.qr-cap{font-weight:700;font-size:clamp(12px,1.2vw,16px);text-align:center}
+.qr-card.float{--qs:clamp(110px,21vh,240px);position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:7;animation:fadeUp .8s 1s both}
+.qr-card.corner{--qs:clamp(96px,20vh,220px);position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:max(20px,env(safe-area-inset-bottom,0px));z-index:5}
+.qr-card.big{--qs:clamp(170px,34vh,330px)}
+@media (max-width:760px){.qr-card.float,.qr-card.corner{--qs:84px;right:12px;bottom:12px}}
+#qrOverlay{position:absolute;inset:0;z-index:40;background:rgba(10,5,7,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px}
+#qrOverlay .qr-card{--qs:clamp(200px,52vh,480px)}
+
+/* order panel */
+#panel{position:fixed;top:0;right:0;bottom:0;width:min(380px,92vw);background:var(--stage-2);color:var(--s-ink);border-left:1px solid var(--s-line);z-index:60;transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);padding-top:calc(18px + env(safe-area-inset-top,0px));padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));padding-left:20px;padding-right:max(20px,env(safe-area-inset-right,0px));overflow:auto;display:flex;flex-direction:column;gap:16px;box-shadow:-20px 0 40px rgba(0,0,0,.4)}
+#panel.open{transform:none}
+.p-head{display:flex;justify-content:space-between;align-items:center}
+.olist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.olist li{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--s-line)}
+.olist .n{font-family:var(--f-num);font-weight:700;font-size:18px;color:var(--spot)}
+.olist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.olist .st{font-size:13px;color:var(--s-muted);font-variant-numeric:tabular-nums}
+.olist .st.over{color:var(--alarm)} .olist .st.live{color:var(--cue)}
+.olist .empty{display:block;border:none}
+.p-sec h3{margin:0 0 8px;font-size:12px;letter-spacing:.12em;color:var(--s-muted)}
+#panel .chip{background:var(--stage-3);color:var(--s-ink)}
+
+
+/* ---------- Q&A projection ---------- */
+#s-qa{justify-content:flex-start;padding-block:clamp(16px,3vh,32px)}
+.qs-wrap{width:100%;max-width:1500px;height:100%;display:grid;grid-template-columns:minmax(260px,.8fr) minmax(0,1.6fr);gap:clamp(18px,3vw,48px);min-height:0}
+@media (max-width:860px){.qs-wrap{grid-template-columns:minmax(0,1fr);height:auto}#s-qa{overflow:auto}}
+.qs-left{display:flex;flex-direction:column;gap:16px;align-items:flex-start;justify-content:center;min-width:0}
+.qs-title{color:var(--spot);font-size:clamp(28px,3.6vw,56px);margin:0}
+#qrQA{--qs:clamp(180px,34vh,360px)}
+.qs-meta{color:var(--s-muted);margin:0;font-variant-numeric:tabular-nums}
+.stage-lang{margin:0;color:var(--cue);font-weight:700;font-size:clamp(14px,1.4vw,18px)}
+.qs-right{display:flex;flex-direction:column;min-height:0;min-width:0}
+.qs-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.qs-head h2{color:var(--s-ink)}
+.qs-seg button{background:transparent;color:var(--s-ink);border-color:var(--s-line)}
+.qs-seg button[aria-pressed="true"]{background:var(--s-ink);color:var(--stage);border-color:var(--s-ink)}
+.qs-list{list-style:none;margin:0;padding:0 4px 0 0;display:flex;flex-direction:column;gap:12px;overflow:auto;min-height:0}
+.qs-item{display:grid;grid-template-columns:72px minmax(0,1fr);gap:16px;align-items:start;background:var(--stage-2);border:1px solid var(--s-line);border-radius:14px;padding:16px 18px}
+.qs-item.top{border-color:var(--spot)}
+.qs-item.answered{opacity:.45}
+.qs-likes{display:flex;flex-direction:column;align-items:center;color:var(--accent)}
+.qs-likes b{font-family:var(--f-num);font-weight:900;font-size:40px;line-height:1}
+.qs-likes span{font-size:12px;color:var(--s-muted)}
+.qs-text{margin:0;font-size:clamp(18px,1.7vw,26px);line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.qs-orig{margin:6px 0 0;font-size:14px;color:var(--s-muted);white-space:pre-wrap;overflow-wrap:anywhere}
+.qs-foot{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.qs-foot .s-btn{padding:6px 12px;font-size:13px}
+.qs-empty{color:var(--s-muted);border:1px dashed var(--s-line);border-radius:12px;padding:28px;text-align:center;font-size:18px}
+.qs-new{animation:fadeUp .6s both}
+
+#flash{position:fixed;inset:0;background:var(--s-ink);opacity:0;pointer-events:none;z-index:70}
+#flash.go{animation:fl .55s ease-out}
+#flash.red{background:var(--alarm)}
+@keyframes fl{0%{opacity:.8}100%{opacity:0}}
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:65}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  #stamp.show .stampbox{animation:none;opacity:1;transform:rotate(-8deg)}
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap head">
+    <div class="brand"><strong>수강생 발표 &amp; 피드백 메모 보드</strong><small>made by 유환일</small></div>
+    <nav class="tabs" id="boardTabs" role="tablist" aria-label="보기 전환" hidden>
+      <button class="tab" role="tab" id="t-write" data-view="write" type="button">메모 쓰기</button>
+      <button class="tab" role="tab" id="t-students" data-view="students" type="button">학생별 보기</button>
+      <button class="tab" role="tab" id="t-rank" data-view="rank" type="button">랭킹</button>
+    </nav>
+    <div class="tools" id="stageTools" hidden>
+      <span class="pill" id="countPill" title="발표 완료 / 전체">0 / 0</span>
+      <button class="tbtn" id="qrBtn" type="button">보드 QR</button>
+      <button class="tbtn" id="listBtn" type="button">순서표</button>
+      <button class="tbtn" id="soundBtn" type="button" aria-pressed="true">소리 켬</button>
+      <button class="tbtn" id="fsBtn" type="button">전체화면</button>
+      <button class="tbtn" id="toConsole" type="button">콘솔</button>
+    </div>
+    <div class="tools" id="adminTools" hidden>
+      <button class="tbtn" id="boardToConsole" type="button">콘솔로</button>
+    </div>
+  </div>
+  <div class="demo" id="demoBar" hidden><div class="wrap">미리보기(demo)입니다. 예시 수업과 예시 메모로 채운 화면이며, 여기서 한 일은 저장되지 않습니다.</div></div>
+</header>
+
+<main>
+  <!-- HOME -->
+  <section class="view wrap" id="home" hidden>
+    <div><h1>발표 화면의 QR을 찍어 들어와 주세요</h1><p>수업 시간에 화면에 뜨는 QR이나 교수자가 안내한 주소로 들어오면 그 수업의 피드백 보드가 열립니다.</p></div>
+  </section>
+
+  <!-- CONSOLE -->
+  <section class="view wrap" id="console" hidden>
+    <div class="con-head">
+      <div><h1>내 수업</h1><p class="muted">수업을 만들고 명단을 넣으면 발표 진행 화면과 학생용 피드백 보드가 함께 생깁니다. 명단, 진행 상황, 메모는 모두 구글 시트 관리 대장에 저장되어 어느 컴퓨터에서 열어도 이어집니다.</p></div>
+      <button class="btn primary" id="newClassBtn" type="button">새 수업 만들기</button>
+    </div>
+    <form class="card editor stack" id="editor" hidden autocomplete="off">
+      <h2 id="edTitle">새 수업</h2>
+      <div class="fld"><span>종류</span>
+        <div class="seg" id="edType" role="radiogroup" aria-label="종류">
+          <label><input type="radio" name="edType" value="talk" checked><span>발표·피드백</span></label>
+          <label><input type="radio" name="edType" value="qa"><span>특강 질문 받기</span></label>
+        </div>
+      </div>
+      <label class="fld" for="edName">수업 이름 <small>관리용입니다. 학생 화면에는 보이지 않습니다.</small><input type="text" id="edName" maxlength="60" placeholder="예) 2026-2 ○○과목 14주차 발표"></label>
+      <div class="ed-grid ed-talk">
+        <div class="fld">
+          <label for="edRoster">명단 <small>한 줄에 한 명. 학번이나 (괄호)가 섞여 있어도 이름만 골라냅니다.</small></label>
+          <textarea id="edRoster" spellcheck="false" placeholder="홍길동(2025***001)&#10;김예시(2025***002)&#10;…"></textarea>
+          <span class="small muted">인식된 인원 <b id="edCount">0</b>명</span>
+          <div class="chips" id="edChips"></div>
+        </div>
+        <div class="stack">
+          <div class="fld">발표 구성
+            <div class="phase-set">
+              <label for="edL1">1단계 이름<input type="text" id="edL1" maxlength="20"></label>
+              <label for="edP1">시간(초)<input type="number" id="edP1" min="10" max="1800" step="10"></label>
+              <label for="edL2">2단계 이름<input type="text" id="edL2" maxlength="20"></label>
+              <label for="edP2">시간(초, 0이면 없음)<input type="number" id="edP2" min="0" max="1800" step="10"></label>
+              <span class="lbl-static" style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)">발표 뒤 단계<input type="text" value="메모 마무리 타이머" disabled aria-label="발표 뒤 단계"></span>
+              <label for="edFb">시간(초, 0이면 없음)<input type="number" id="edFb" min="0" max="900" step="10"></label>
+            </div>
+          </div>
+          <label class="fld" for="edCats">메모 분류 <small>쉼표로 구분, 최대 5개</small><input type="text" id="edCats"></label>
+        </div>
+      </div>
+      <div class="ed-qa stack" hidden>
+        <label class="fld" for="edQTitle">학생 화면 제목 <small>질문 화면 맨 위에 크게 보입니다.</small><input type="text" id="edQTitle" maxlength="60" placeholder="예) ○○○ 교수 초청 특강"></label>
+      </div>
+      <p class="note" id="edNote">저장하면 이 수업 전용 학생 QR과 결과 보드 주소가 만들어집니다.</p>
+      <div class="cta">
+        <button class="btn primary" id="edSave" type="submit">저장</button>
+        <button class="btn" id="edCancel" type="button">닫기</button>
+        <button class="btn" id="edReset" type="button" hidden>발표 진행 초기화</button>
+        <button class="btn del" id="edDelete" type="button" hidden>수업 삭제</button>
+      </div>
+    </form>
+    <div class="classgrid" id="classList" style="margin-top:18px"></div>
+  </section>
+
+  <!-- STAGE -->
+  <section class="view" id="stage" hidden>
+    <div class="screen" id="s-draw">
+      <div class="stagebox" id="stagebox">
+        <div class="beam l"></div><div class="beam r"></div>
+        <div class="valance"></div>
+        <div class="curtain l"></div><div class="curtain r"></div>
+        <div class="qr-card float" id="qrReveal" hidden><div class="qr-box"></div><span class="qr-cap">익명 메모 남기기 · 모국어 OK</span></div>
+        <div class="draw-inner">
+          <div class="idle" id="idle">
+            <p class="ask">다음 무대의 <span>주인공</span>은?</p>
+            <div class="ticket-wrap"><button class="ticket" id="drawBtn" type="button">발표자 뽑기 <span class="kbd">SPACE</span></button></div>
+            <span class="meta-line" id="idleMeta"></span>
+          </div>
+          <div id="reelBox" hidden>
+            <div class="reel-cap">두구두구두구</div>
+            <div class="reel" id="reel"><div class="col"><div class="line"></div><div class="line mid"></div><div class="line"></div></div></div>
+          </div>
+          <div class="reveal" id="reveal" hidden>
+            <div class="ord"><span>발표 순서</span><b id="ordNo">01</b></div>
+            <p class="who" id="whoName"></p>
+            <div class="actions">
+              <button class="s-btn primary" id="toStage" type="button">무대로, 시작 <span class="kbd">SPACE</span></button>
+              <button class="s-btn small" id="laterBtn" type="button">나중에 (다시 넣기)</button>
+              <button class="s-btn small" id="absentBtn" type="button">결석 처리</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="screen" id="s-count" hidden>
+      <span class="cd-lbl">무대 위로</span>
+      <span class="cd-who" id="cdName"></span>
+      <span class="cd-num" id="cdNum">3</span>
+    </div>
+
+    <div class="screen" id="s-timer" data-phase="1" data-state="normal" hidden>
+      <span class="t-who" id="tWho"></span>
+      <div class="phases"><span class="ph ph1" id="ph1"></span><span class="ph ph2" id="ph2"></span></div>
+      <span class="phase-label" id="phaseLabel"></span>
+      <span class="clock" id="clock">0:00</span>
+      <span class="paused-tag" id="pausedTag" hidden>일시정지</span>
+      <span class="sub" id="sub"></span>
+      <div class="track" id="track"><div class="seg2 a"><i id="fill1"></i></div><div class="seg2 b" id="seg2b"><i id="fill2"></i></div></div>
+      <div class="track-lbl" id="trackLbl"><span id="tl1"></span><span id="tl2"></span></div>
+      <div class="t-controls">
+        <button class="s-btn small" id="pauseBtn" type="button"><span id="pauseLbl">일시정지</span> <span class="kbd">SPACE</span></button>
+        <button class="s-btn small" id="skipBtn" type="button"><span id="skipLbl">다음 단계로</span> <span class="kbd">→</span></button>
+        <button class="s-btn small primary" id="endBtn" type="button">발표 종료 <span class="kbd">ENTER</span></button>
+      </div>
+      <div class="qr-card corner" id="qrTimer" hidden><div class="qr-box"></div><span class="qr-cap">메모 남기기 · 모국어 OK</span></div>
+      <div class="overlay" id="cue"><div class="band"></div></div>
+      <div class="overlay" id="stamp"><div class="stampbox">TIME</div></div>
+    </div>
+
+    <div class="screen" id="s-feedback" hidden>
+      <span class="eyebrow">익명 메모 마무리</span>
+      <p class="fb-who" id="fbName"></p>
+      <span class="used" id="usedChip">발표 시간 <b id="usedTime">0:00</b><span id="usedOver"></span></span>
+      <div class="fb-row">
+        <div class="qr-card big" id="qrFb" hidden><div class="qr-box"></div><span class="qr-cap">QR을 찍고 익명 메모 남기기</span></div>
+        <div class="fb-cards" id="fbCards"></div>
+      </div>
+      <p class="stage-lang">🌐 모국어로 메모해도 한국어로 자동 번역됩니다 · Write in any language</p>
+      <div class="fb-timer" id="fbTimer"><span class="fb-clock" id="fbClock">1:00</span><button class="s-btn small" id="fbBtn" type="button">메모 타이머 시작</button></div>
+      <button class="s-btn primary" id="nextBtn" type="button"><span id="nextLbl">다음 발표자 뽑기</span> <span class="kbd">SPACE</span></button>
+    </div>
+
+    <div class="screen" id="s-done" hidden>
+      <div class="done-wrap">
+        <span class="eyebrow">커튼콜</span>
+        <h1>오늘의 발표가 모두 끝났습니다</h1>
+        <div class="board-call">
+          <div class="qr-card big" id="qrDone"><div class="qr-box"></div><span class="qr-cap">전체 피드백 보드</span></div>
+          <div class="guide">
+            <h2>과제를 쓰기 전에 이 QR을 저장해 두세요</h2>
+            <p class="guide-lede">오늘 발표에 남겨진 익명 메모가 모두 한곳에 모여 있습니다. 언제든 다시 열어 볼 수 있습니다.</p>
+            <ol class="guide-steps">
+              <li><b>내 메모 확인하기</b><span>'학생별 보기'에서 내 이름을 누르면 받은 메모가 분류별로 정리되어 있습니다. 청자에게 무엇이 닿았는지 확인해 보세요.</span></li>
+              <li><b>고쳐 쓰기의 출발점으로</b><span>받은 메모 가운데 무엇을 받아들이고 무엇을 지킬지 정하고, 그 이유를 과제의 성찰 부분에 적어 주세요.</span></li>
+              <li><b>다른 발표에서 배우기</b><span>'랭킹'과 공감을 많이 받은 메모를 보면 청자의 마음을 움직인 형식과 내용이 보입니다.</span></li>
+            </ol>
+          </div>
+        </div>
+        <h3 class="rec-title">발표 순서와 시간 기록</h3>
+        <div class="tbl-wrap"><table><thead><tr><th>순서</th><th>이름</th><th>발표 시간</th><th>초과</th></tr></thead><tbody id="doneBody"></tbody></table></div>
+        <p class="small" id="doneAbsent" style="color:var(--s-muted);margin:0"></p>
+        <div class="cta">
+          <button class="s-btn primary" id="copyBtn" type="button">발표 순서·시간 복사</button>
+          <button class="s-btn" id="doneConsole" type="button">콘솔로</button>
+        </div>
+        <pre id="copyText"></pre>
+      </div>
+    </div>
+
+    <div class="screen" id="s-qa" hidden>
+      <div class="qs-wrap">
+        <div class="qs-left">
+          <span class="eyebrow">익명 질문 받기</span>
+          <h1 class="qs-title" id="qsTitle"></h1>
+          <div class="qr-card" id="qrQA"><div class="qr-box"></div><span class="qr-cap">QR을 찍고 질문 남기기</span></div>
+          <p class="qs-meta" id="qsMeta"></p>
+          <p class="stage-lang">🌐 모국어로 질문해도 한국어로 자동 번역됩니다 · Write in any language</p>
+        </div>
+        <div class="qs-right">
+          <div class="qs-head"><h2>공감 많은 질문</h2>
+            <div class="seg qs-seg" id="qsFilter"><button type="button" data-f="open" aria-pressed="true">답변 전</button><button type="button" data-f="all" aria-pressed="false">전체</button></div>
+          </div>
+          <ol class="qs-list" id="qsList"></ol>
+        </div>
+      </div>
+    </div>
+
+    <div id="qrOverlay" hidden>
+      <div class="qr-card" id="qrAll"><div class="qr-box"></div><span class="qr-cap">전체 피드백 보드</span></div>
+      <p style="margin:0;color:var(--s-muted)">카메라로 찍으면 이 수업의 모든 메모와 랭킹을 볼 수 있습니다.</p>
+      <button class="s-btn" id="qrClose" type="button">닫기</button>
+    </div>
+  </section>
+
+  <!-- BOARD -->
+  <section class="view wrap" id="board" hidden>
+    <div id="v-write">
+      <div class="write">
+        <div class="stack">
+          <div class="card stack">
+            <div class="who-pick"><label for="pick">지금 메모하는 발표</label><select id="pick"></select></div>
+            <p class="hero-name" id="heroName">발표자를 고르세요</p>
+            <div class="hero-stats" id="heroStats"></div>
+            <div><button class="heart" id="talkLike" type="button" aria-pressed="false">♥ 이 발표 좋아요 <b id="talkLikeN">0</b></button></div>
+          </div>
+          <form class="card stack" id="memoForm" autocomplete="off">
+            <h3>무엇을 남길까요?</h3>
+            <div class="seg" role="radiogroup" aria-label="메모 분류" id="catGroup"></div>
+            <label for="memoText" class="small muted" id="catHint"></label>
+            <div class="lang-box" role="note"><b>🌐 자동 번역</b><span>모국어로 써도 괜찮아요. 한국어로 자동 번역되어 올라갑니다.</span><span class="lang-sub">Write in your own language — it will be translated into Korean. · 可以用母语写，会自动翻译成韩语。</span></div>
+            <textarea id="memoText" maxlength="300" placeholder="예) 첫 10초에 보여 준 사진 한 장 덕분에 이야기에 바로 들어갈 수 있었어요."></textarea>
+            <div class="form-foot"><span class="count" id="count">0 / 300</span><button class="btn primary" id="submitBtn" type="submit">익명으로 남기기</button></div>
+            <p class="notice">이름은 저장되지 않습니다. 남긴 메모는 수강생 모두에게 공개되고, 발표자는 과제를 고칠 때 참고합니다.</p>
+          </form>
+        </div>
+        <div class="stack">
+          <div class="list-head"><h2 id="listTitle">남겨진 메모</h2><span class="updated" id="updated"></span></div>
+          <div class="memos" id="writeList"></div>
+        </div>
+      </div>
+    </div>
+    <div id="v-students" hidden>
+      <div id="studentsHome">
+        <h2>학생별 피드백</h2>
+        <div class="toolbar">
+          <input type="search" id="q" placeholder="이름 검색" aria-label="이름 검색">
+          <select id="sortSel" aria-label="정렬"><option value="order">명단 순</option><option value="likes">좋아요 많은 순</option><option value="memos">메모 많은 순</option></select>
+        </div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div id="detail" hidden>
+        <div class="detail-head">
+          <button class="back" id="dBack" type="button">← 전체 학생</button>
+          <p class="hero-name" id="dName"></p>
+          <div class="hero-stats" id="dStats"></div>
+          <div><button class="btn primary" id="dWrite" type="button">이 발표에 메모 쓰기</button></div>
+        </div>
+        <div class="dbar"><div class="seg" id="dCats"></div><select id="dSort" aria-label="메모 정렬"><option value="likes">공감 많은 순</option><option value="new">최신 순</option></select></div>
+        <div class="memos" id="dList"></div>
+      </div>
+    </div>
+    <div id="v-rank" hidden>
+      <h2>발표 기록</h2>
+      <div class="tiles" id="tiles"></div>
+      <div class="charts">
+        <div class="chart"><h3>발표 좋아요 랭킹</h3><p>학우들이 누른 ♥ 수. 줄을 누르면 그 학생의 메모로 이동합니다.</p><ol class="rlist" id="rankLikes"></ol></div>
+        <div class="chart"><h3>받은 피드백 수 랭킹</h3><p>발표마다 남겨진 익명 메모 수.</p><ol class="rlist" id="rankMemos"></ol></div>
+      </div>
+      <div class="best"><h2>공감을 가장 많이 받은 메모</h2><div class="memos" id="bestList"></div></div>
+    </div>
+  </section>
+
+  <!-- Q&A (student) -->
+  <section class="view wrap" id="qa" hidden>
+    <div class="qa-top">
+      <span class="eyebrow-q">익명 질문</span>
+      <h1 id="qaTitle">특강 질문</h1>
+      <p class="muted small">이름은 저장되지 않습니다. 다른 사람의 질문에 공감을 누르면, 공감이 많은 질문부터 답변합니다.</p>
+    </div>
+    <form class="card stack" id="qaForm" autocomplete="off">
+      <label for="qaText" class="lbl-strong">무엇이 궁금한가요?</label>
+      <div class="lang-box" role="note"><b>🌐 자동 번역</b><span>모국어로 써도 괜찮아요. 한국어로 자동 번역되어 올라갑니다.</span><span class="lang-sub">Write in your own language — it will be translated into Korean. · 可以用母语写，会自动翻译成韩语。</span></div>
+      <textarea id="qaText" maxlength="300" placeholder="예) 오늘 말씀하신 방법을 제 전공 글쓰기에도 그대로 적용할 수 있을까요?"></textarea>
+      <div class="form-foot"><span class="count" id="qaCount">0 / 300</span><button class="btn primary" id="qaSubmit" type="submit">익명으로 질문하기</button></div>
+    </form>
+    <div class="list-head qa-list-head"><h2>질문 <span class="muted" id="qaN"></span></h2>
+      <div class="seg" id="qaSort"><button type="button" data-s="likes" aria-pressed="true">공감순</button><button type="button" data-s="new" aria-pressed="false">최신순</button></div>
+    </div>
+    <div class="memos" id="qaList"></div>
+  </section>
+</main>
+
+<aside id="panel" aria-label="발표 순서표">
+  <div class="p-head"><h2>발표 순서표</h2><button class="tbtn" id="panelClose" type="button">닫기</button></div>
+  <ol class="olist" id="orderList"></ol>
+  <div class="p-sec"><h3 id="remainHead">남은 발표자</h3><div class="chips" id="remainChips"></div></div>
+  <div class="p-sec" id="absentSec" hidden><h3>결석</h3><div class="chips" id="absentChips"></div></div>
+</aside>
+<div class="toast" id="toast" role="status" hidden></div>
+<div id="flash"></div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+/* ================= base ================= */
+/* 데이터 서버: 구글 시트에 붙은 Apps Script 웹 앱. 화면(이 파일)은 GitHub Pages에서 열립니다.
+   서버 주소가 바뀌면 이 한 줄만 고치면 됩니다. */
+const API_URL = 'https://script.google.com/macros/s/AKfycbzw6EByZXCXt2m1LvL-FWzt1JKnlUmBNyPzmrXov_n5yi6Ek3t79nWS6dTjnNDnly2E/exec';
+const Q = new URLSearchParams(location.search);
+const LIVE = !Q.has('demo');
+/* 관리키는 주소창에서 바로 지워 화면 공유 때 노출되지 않게 하고, 이 탭에서만 기억합니다. */
+let adminKey = Q.get('admin') || '';
+try { if (adminKey) sessionStorage.setItem('pfb-admin', adminKey); else adminKey = sessionStorage.getItem('pfb-admin') || ''; } catch (e) {}
+if (Q.has('admin')) { Q.delete('admin'); try { history.replaceState(null, '', location.pathname + (Q.toString() ? '?' + Q.toString() : '') + location.hash); } catch (e) {} }
+const CFG = { admin: adminKey, c: Q.get('cls') || '', p: Q.get('p') || '', view: Q.get('view') || '', m: Q.get('m') || '' };
+const ADMIN = LIVE ? CFG.admin : 'preview';
+const BASE = location.origin + location.pathname;
+const $ = s => document.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const pad = n => String(n).padStart(2, '0');
+const fmt = sec => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600); }
+function errMsg(e) { return (e && e.message) ? e.message.replace(/^Error:\s*/, '').replace(/^Exception:\s*/, '') : '처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'; }
+const CAT_DESC = {
+  '좋았던 점': '기억에 남은 장면, 표현, 형식',
+  '제안': '이렇게 바꾸면 청자에게 더 잘 닿을 것 같은 점',
+  '차용하고 싶은 점': '내 발표에 가져가고 싶은 형식이나 내용',
+  '질문': '더 듣고 싶은 것, 궁금한 점'
+};
+const CAT_HINT = c => CAT_DESC[c] ? CAT_DESC[c] + '을(를) 구체적으로 적어 주세요.' : '구체적으로 적어 주세요.';
+const shortCat = c => c.length > 5 ? c.slice(0, 4) + '…' : c;
+
+const studentLink = (c, p) => `${BASE}?cls=${encodeURIComponent(c)}&p=${encodeURIComponent(p)}`;
+const boardLink = c => `${BASE}?cls=${encodeURIComponent(c)}&view=board`;
+const qaLink = c => `${BASE}?cls=${encodeURIComponent(c)}`;
+
+/* roster parsing (same rules as Code.gs) */
+function parseRoster(text) {
+  const out = [], seen = {};
+  String(text || '').split(/\r?\n/).forEach(raw => {
+    let line = raw.trim();
+    if (!line || line[0] === '#') return;
+    line = line.replace(/^\d{1,3}[.)]?\s+/, '').replace(/[(\[（][^)\]）]*[)\]）]/g, ' ').trim();
+    const fields = line.split(/[\t,;|]/).map(s => s.replace(/\d{5,}/g, '').trim()).filter(Boolean);
+    if (!fields.length) return;
+    let name = fields[0];
+    const toks = name.split(/\s+/);
+    if (toks.length > 1 && /[가-힣]/.test(toks[0])) name = toks[0];
+    if (/^(학번|이름|성명|순번|번호|name)$/i.test(name)) return;
+    name = name.slice(0, 30);
+    if (seen[name]) { seen[name]++; name = `${name} (${seen[name]})`; } else seen[name] = 1;
+    out.push(name);
+  });
+  return out;
+}
+
+/* ================= preview backend (only when not deployed) ================= */
+const Mock = (() => {
+  const DEF = { p1: 120, p2: 60, fb: 60, l1: '발표', l2: '기획 설명', cats: ['좋았던 점', '제안', '차용하고 싶은 점'] };
+  let seed = 11; const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const names = Array.from({ length: 20 }, (_, i) => `학생${pad(i + 1)}`);
+  const classes = {
+    demo: { id: 'demo', name: '예시 수업 (미리보기)', rosterText: names.join('\n'), settings: Object.assign({}, DEF, { l1: '자기소개 시연' }),
+            progress: { order: names.slice(0, 3).map((n, i) => ({ name: n, status: 'done', used: 170 + i * 7, over: i === 2 ? 4 : 0 })), absent: [] }, created: Date.now() - 86400000, updated: Date.now() - 3600000 }
+  };
+  const texts = ['첫 장면에 보여 준 사진 한 장으로 이야기가 바로 시작돼서 몰입했어요.', '핵심 문장이 끝까지 기억에 남아요.', '자막이 빨리 지나가서 핵심만 남기면 더 좋을 것 같아요.', '청자 분석 근거를 하나만 더 들어 주면 설득력이 올라갈 것 같아요.', '질문으로 여는 구성, 제 발표에도 써 보고 싶습니다.'];
+  const memos = [], likes = new Set(), talk = {}, questions = [];
+  classes.qa1 = { id: 'qa1', name: '예시 특강 (미리보기)', rosterText: '', settings: Object.assign({}, DEF, { type: 'qa', title: '예시 초청 특강' }), progress: { order: [], absent: [] }, created: Date.now() - 7200000, updated: Date.now() - 1800000 };
+  [['오늘 소개한 방법을 전공 보고서에도 쓸 수 있을까요?', 7], ['AI로 쓴 초안은 어디까지 고쳐야 내 글이라고 할 수 있나요?', 12], ['参考文献也可以用AI整理吗？', 3, '참고문헌도 AI로 정리해도 되나요?']].forEach(([t, l, ko], i) => questions.push({ c: 'qa1', id: 'q' + i, ts: Date.now() - (i + 1) * 600000, text: ko || t, orig: ko ? t : undefined, likes: l, answered: i === 1, hidden: false }));
+  const fakeKo = t => /[\uAC00-\uD7A3]/.test(t) ? null : '(자동 번역 예시) ' + t;
+  names.slice(0, 3).forEach((p, i) => { talk['demo|' + p] = 5 + i * 3; for (let k = 0; k < 4 + i; k++) memos.push({ c: 'demo', id: `m${i}${k}`, ts: Date.now() - Math.floor(rnd() * 5e6), pid: p, cat: DEF.cats[k % 3], text: texts[(i + k) % texts.length], likes: Math.floor(rnd() * 6), hidden: false }); });
+  const roster = cls => parseRoster(cls.rosterText);
+  const pool = cls => { const used = new Set([...cls.progress.order.map(o => o.name), ...cls.progress.absent]); return roster(cls).filter(n => !used.has(n)); };
+  const full = cls => JSON.stringify({ id: cls.id, name: cls.name, rosterText: cls.rosterText, roster: roster(cls), settings: cls.settings, progress: Object.assign({ pool: pool(cls) }, cls.progress) });
+  const qaBoard = cls => JSON.stringify({ type: 'qa', title: cls.settings.title || '특강 질문', questions: questions.filter(q => q.c === cls.id && !q.hidden).map(q => ({ id: q.id, ts: q.ts, text: q.text, orig: q.orig, likes: q.likes, answered: q.answered })), updated: Date.now() });
+  const board = c => { const cls = classes[c]; if (!cls) throw new Error('보드를 찾지 못했습니다.'); if (cls.settings.type === 'qa') return qaBoard(cls); const tl = {}; roster(cls).forEach(n => { if (talk[c + '|' + n]) tl[n] = talk[c + '|' + n]; });
+    return JSON.stringify({ roster: roster(cls), cats: cls.settings.cats, memos: memos.filter(m => m.c === c && !m.hidden).map(m => ({ id: m.id, ts: m.ts, pid: m.pid, cat: m.cat, text: m.text, orig: m.orig, likes: m.likes })), talkLikes: tl, updated: Date.now() }); };
+  return {
+    getBoard: c => board(c),
+    addMemo(c, pid, cat, text) { const raw = String(text).trim().slice(0, 300), ko = fakeKo(raw); memos.push({ c, id: 'n' + Date.now(), ts: Date.now(), pid, cat, text: ko || raw, orig: ko ? raw : undefined, likes: 0, hidden: false }); return board(c); },
+    addQuestion(c, text) { const raw = String(text).trim().slice(0, 300); if (!raw) throw new Error('질문 내용을 입력해 주세요.'); const ko = fakeKo(raw); questions.push({ c, id: 'nq' + Date.now(), ts: Date.now(), text: ko || raw, orig: ko ? raw : undefined, likes: 0, answered: false, hidden: false }); return board(c); },
+    markAnswered(c, id, val) { const q = questions.find(x => x.id === id); if (q) q.answered = !!val; return board(c); },
+    hideQuestion(c, id) { const q = questions.find(x => x.id === id); if (q) q.hidden = true; return board(c); },
+    toggleLike(c, kind, target) {
+      const k = c + kind + target, on = !likes.has(k); on ? likes.add(k) : likes.delete(k);
+      if (kind === 'talk') talk[c + '|' + target] = Math.max(0, (talk[c + '|' + target] || 0) + (on ? 1 : -1));
+      else if (kind === 'q') { const q = questions.find(x => x.id === target); if (q) q.likes = Math.max(0, q.likes + (on ? 1 : -1)); }
+      else { const m = memos.find(x => x.id === target); if (m) m.likes = Math.max(0, m.likes + (on ? 1 : -1)); }
+      return board(c);
+    },
+    hideMemo(c, id) { const m = memos.find(x => x.id === id); if (m) m.hidden = true; return board(c); },
+    listClasses() { return JSON.stringify(Object.values(classes).map(cls => ({ id: cls.id, name: cls.name, count: roster(cls).length, done: cls.progress.order.filter(o => o.status === 'done').length, absent: cls.progress.absent.length, memos: memos.filter(m => m.c === cls.id && !m.hidden).length, type: cls.settings.type || 'talk', title: cls.settings.title || '', questions: questions.filter(q => q.c === cls.id && !q.hidden).length, created: cls.created, updated: cls.updated })).sort((a, b) => b.updated - a.updated)); },
+    getClass(k, id) { const cls = classes[id]; if (!cls) throw new Error('수업을 찾지 못했습니다.'); return full(cls); },
+    saveClass(k, d) {
+      if (!String(d.name || '').trim()) throw new Error('수업 이름을 입력해 주세요.');
+      const isQa = d.settings && d.settings.type === 'qa'; if (isQa) d.rosterText = '';
+      const r = parseRoster(d.rosterText); if (!r.length && !isQa) throw new Error('명단에서 이름을 찾지 못했습니다.');
+      let cls = d.id && classes[d.id];
+      const st = Object.assign({}, DEF, d.settings);
+      if (cls) { Object.assign(cls, { name: d.name, rosterText: d.rosterText, settings: st, updated: Date.now() }); const set = new Set(r); cls.progress.order = cls.progress.order.filter(o => set.has(o.name)); cls.progress.absent = cls.progress.absent.filter(n => set.has(n)); }
+      else { const id = 'p' + Math.random().toString(36).slice(2, 8); cls = classes[id] = { id, name: d.name, rosterText: d.rosterText, settings: st, progress: { order: [], absent: [] }, created: Date.now(), updated: Date.now() }; }
+      return full(cls);
+    },
+    saveProgress(k, id, pg) { const cls = classes[id]; cls.progress = { order: pg.order || [], absent: pg.absent || [] }; cls.updated = Date.now(); return JSON.stringify(cls.progress); },
+    deleteClass(k, id) { if (!classes[id]) throw new Error('이미 삭제되었거나 없는 수업입니다.'); const n = memos.filter(m => m.c === id).length, nq = questions.filter(q => q.c === id).length; delete classes[id]; for (let i = memos.length - 1; i >= 0; i--) if (memos[i].c === id) memos.splice(i, 1); for (let i = questions.length - 1; i >= 0; i--) if (questions[i].c === id) questions.splice(i, 1); return JSON.stringify({ classes: 1, memos: n, likes: 0, questions: nq }); },
+    resetProgress(k, id) { const cls = classes[id]; cls.progress = { order: [], absent: [] }; cls.updated = Date.now(); return JSON.stringify(cls.progress); }
+  };
+})();
+
+async function api(fn, ...args) {
+  const parse = r => (typeof r === 'string' ? JSON.parse(r) : r);
+  if (!LIVE) return new Promise((res, rej) => setTimeout(() => { try { res(parse(Mock[fn](...args))); } catch (e) { rej(e); } }, 150));
+  let res;
+  try {
+    /* text/plain + 쿠키 없이 보내야 구글 로그인 계정과 상관없이 동작합니다. */
+    res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn, args }), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, credentials: 'omit', redirect: 'follow' });
+  } catch (e) { throw new Error('서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.'); }
+  let j;
+  try { j = await res.json(); } catch (e) { throw new Error('서버 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
+  if (!j || !j.ok) throw new Error((j && j.error) || '처리하지 못했습니다.');
+  return parse(j.data);
+}
+
+/* ================= QR ================= */
+function drawQR(card, url) {
+  if (!card) return;
+  if (!url || typeof QRCode === 'undefined') { card.hidden = true; return; }
+  const box = card.querySelector('.qr-box');
+  if (box.dataset.url !== url) {
+    box.textContent = '';
+    try { new QRCode(box, { text: url, width: 512, height: 512, colorDark: '#000000', colorLight: '#fafafa', correctLevel: QRCode.CorrectLevel.M }); box.dataset.url = url; }
+    catch (e) { card.hidden = true; return; }
+  }
+  card.hidden = false;
+}
+
+/* ================= routing ================= */
+const VIEWS = ['home', 'console', 'stage', 'board', 'qa'];
+let MODE = 'home';
+function setMode(m) {
+  MODE = m;
+  document.body.dataset.mode = m;
+  VIEWS.forEach(v => { $('#' + v).hidden = v !== m; });
+  $('#boardTabs').hidden = m !== 'board';
+  $('#stageTools').hidden = m !== 'stage';
+  $('#adminTools').hidden = !((m === 'board' || m === 'qa') && ADMIN);
+  if (m !== 'stage') $('#panel').classList.remove('open');
+  window.scrollTo(0, 0);
+}
+$('#boardToConsole').addEventListener('click', () => openConsole());
+$('#demoBar').hidden = LIVE;
+
+/* ================= CONSOLE ================= */
+let editing = null, editingName = '', armReset = false, armDel = false, delTimer = null;
+async function openConsole() {
+  stopBoardPolling(); stopQAStage();
+  setMode('console');
+  const box = $('#classList'); box.textContent = '';
+  box.appendChild(el('div', 'empty', '수업 목록을 불러오는 중…'));
+  try { renderClassList(await api('listClasses', ADMIN)); }
+  catch (e) { box.textContent = ''; box.appendChild(el('div', 'empty', errMsg(e))); }
+}
+function renderClassList(list) {
+  const box = $('#classList'); box.textContent = '';
+  if (!list.length) { box.appendChild(el('div', 'empty', '아직 만든 수업이 없습니다. "새 수업 만들기"로 첫 수업을 등록하세요.')); return; }
+  list.forEach(c => {
+    const isQa = c.type === 'qa';
+    const card = el('div', 'card ccard');
+    const meta = el('div', 'meta');
+    (isQa ? [['종류', '특강 질문'], ['질문', c.questions || 0]] : [['인원', `${c.count}명`], ['발표', `${c.done} / ${c.count - c.absent}`], ['메모', c.memos]])
+      .forEach(([k, v]) => { const s = el('span'); s.append(document.createTextNode(k + ' '), el('b', null, v)); meta.appendChild(s); });
+    const acts = el('div', 'acts');
+    const b1 = el('button', 'btn primary small', isQa ? '질문 화면 띄우기' : '발표 진행'); b1.type = 'button'; b1.onclick = () => openStage(c.id);
+    const b2 = el('button', 'btn small', isQa ? '질문 보드' : '결과 보드'); b2.type = 'button'; b2.onclick = () => openBoard(c.id, 'students');
+    const b3 = el('button', 'btn small', isQa ? '설정' : '명단·설정'); b3.type = 'button'; b3.onclick = () => openEditor(c.id);
+    acts.append(b1, b2, b3);
+    const lb = el('div', 'linkbox');
+    const inp = el('input'); inp.type = 'text'; inp.readOnly = true; inp.value = isQa ? qaLink(c.id) : boardLink(c.id); inp.setAttribute('aria-label', isQa ? '학생용 질문 주소' : '학생용 결과 보드 주소');
+    inp.addEventListener('focus', () => inp.select());
+    const cp = el('button', 'btn small', '복사'); cp.type = 'button';
+    cp.onclick = () => { inp.focus(); inp.select(); try { navigator.clipboard.writeText(inp.value).then(() => toast('학생용 보드 주소를 복사했습니다.'), () => { document.execCommand && document.execCommand('copy'); toast('주소를 선택했습니다. 복사(Ctrl/⌘+C)해 주세요.'); }); } catch (e) { toast('주소를 선택했습니다. 복사(Ctrl/⌘+C)해 주세요.'); } };
+    lb.append(inp, cp);
+    const when = c.updated ? new Date(c.updated) : null;
+    card.append(el('span', 'nm', c.name), meta, acts, el('span', 'small muted', isQa ? '학생용 질문 주소 (QR·LMS 공지용)' : '학생용 결과 보드 주소 (LMS 공지용)'), lb);
+    if (when) card.appendChild(el('span', 'small muted', `마지막 수정 ${when.getFullYear()}.${when.getMonth() + 1}.${when.getDate()}`));
+    box.appendChild(card);
+  });
+}
+function edPreview() {
+  const list = parseRoster($('#edRoster').value);
+  $('#edCount').textContent = list.length;
+  const ch = $('#edChips'); ch.textContent = '';
+  list.forEach(n => ch.appendChild(el('span', 'chip', n)));
+}
+$('#edRoster').addEventListener('input', edPreview);
+function edType() { const r = document.querySelector('input[name="edType"]:checked'); return r ? r.value : 'talk'; }
+function edTypeSync() {
+  const qa = edType() === 'qa';
+  document.querySelector('.ed-talk').hidden = qa;
+  document.querySelector('.ed-qa').hidden = !qa;
+  $('#edName').placeholder = qa ? '예) 2026-2 ○○ 초청 특강' : '예) 2026-2 ○○과목 14주차 발표';
+  if (!editing) $('#edNote').textContent = qa ? '명단은 필요 없습니다. 저장하면 학생용 질문 QR과 강연용 질문 화면이 만들어집니다.' : '저장하면 이 수업 전용 학생 QR과 결과 보드 주소가 만들어집니다.';
+}
+document.querySelectorAll('input[name="edType"]').forEach(r => r.addEventListener('change', edTypeSync));
+function fillEditor(d) {
+  const st = d.settings || {};
+  document.querySelectorAll('input[name="edType"]').forEach(r => { r.checked = r.value === (st.type || 'talk'); r.disabled = !!d.id; });
+  $('#edQTitle').value = st.title || '';
+  $('#edName').value = d.name || '';
+  $('#edRoster').value = d.rosterText || '';
+  $('#edL1').value = st.l1 || '발표'; $('#edP1').value = st.p1 ?? 120;
+  $('#edL2').value = st.l2 || '기획 설명'; $('#edP2').value = st.p2 ?? 60;
+  $('#edFb').value = st.fb ?? 60;
+  $('#edCats').value = (st.cats || ['좋았던 점', '제안', '차용하고 싶은 점']).join(', ');
+  edPreview(); edTypeSync();
+}
+$('#newClassBtn').addEventListener('click', () => {
+  editing = null; editingName = ''; $('#edTitle').textContent = '새 수업'; $('#edReset').hidden = true; $('#edDelete').hidden = true;
+  $('#edNote').textContent = '저장하면 이 수업 전용 학생 QR과 결과 보드 주소가 만들어집니다.';
+  fillEditor({}); $('#editor').hidden = false; $('#edName').focus();
+});
+async function openEditor(id) {
+  try {
+    const d = await api('getClass', ADMIN, id);
+    const isQa = d.settings && d.settings.type === 'qa';
+    editing = d.id; editingName = d.name; $('#edTitle').textContent = isQa ? '특강 설정 수정' : '명단·설정 수정'; $('#edReset').hidden = isQa; $('#edDelete').hidden = false; resetArm(); delArm();
+    const started = d.progress.order.length || d.progress.absent.length;
+    $('#edNote').textContent = isQa ? '제목과 이름을 바꾼 뒤 저장하세요. 남겨진 질문은 그대로 유지됩니다.' : started ? '이미 발표가 진행된 수업입니다. 명단을 바꾸면 아직 뽑히지 않은 사람에게만 반영되고, 지난 기록과 메모는 그대로 남습니다.' : '명단과 시간을 바꾼 뒤 저장하세요.';
+    fillEditor(d); $('#editor').hidden = false; $('#editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (e) { toast(errMsg(e)); }
+}
+$('#edCancel').addEventListener('click', () => { $('#editor').hidden = true; delArm(); });
+function delArm() { armDel = false; clearTimeout(delTimer); const b = $('#edDelete'); b.textContent = '수업 삭제'; b.classList.remove('danger'); b.classList.add('del'); }
+$('#edDelete').addEventListener('click', async e => {
+  if (!editing) return;
+  const b = e.currentTarget;
+  if (!armDel) {
+    armDel = true; b.classList.remove('del'); b.classList.add('danger');
+    b.textContent = `한 번 더 누르면 '${editingName}'의 모든 기록(명단·진행·메모·질문·좋아요)이 지워집니다`;
+    delTimer = setTimeout(delArm, 5000); return;
+  }
+  delArm(); b.disabled = true;
+  try {
+    const r = await api('deleteClass', ADMIN, editing);
+    toast(`'${editingName}'을(를) 삭제했습니다. (메모 ${r.memos || 0}개, 질문 ${r.questions || 0}개, 좋아요 ${r.likes || 0}개 함께 삭제)`);
+    $('#editor').hidden = true; editing = null; openConsole();
+  } catch (err) { toast(errMsg(err)); }
+  finally { b.disabled = false; }
+});
+function resetArm() { armReset = false; $('#edReset').textContent = '발표 진행 초기화'; $('#edReset').classList.remove('danger'); }
+$('#edReset').addEventListener('click', async e => {
+  if (!editing) return;
+  if (!armReset) { armReset = true; e.currentTarget.textContent = '한 번 더 누르면 발표 순서와 시간이 지워집니다 (메모는 남습니다)'; e.currentTarget.classList.add('danger'); setTimeout(resetArm, 4500); return; }
+  resetArm();
+  try { await api('resetProgress', ADMIN, editing); toast('발표 진행을 초기화했습니다.'); openConsole(); $('#editor').hidden = true; }
+  catch (err) { toast(errMsg(err)); }
+});
+$('#editor').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = $('#edSave'); btn.disabled = true; btn.textContent = '저장 중…';
+  const data = {
+    id: editing || '', name: $('#edName').value.trim(), rosterText: edType() === 'qa' ? '' : $('#edRoster').value,
+    settings: { type: edType(), title: $('#edQTitle').value.trim(), l1: $('#edL1').value.trim(), p1: Number($('#edP1').value), l2: $('#edL2').value.trim(), p2: Number($('#edP2').value), fb: Number($('#edFb').value), cats: $('#edCats').value.split(',').map(s => s.trim()).filter(Boolean) }
+  };
+  try { const d = await api('saveClass', ADMIN, data); toast(`'${d.name}' 저장했습니다.`); $('#editor').hidden = true; editing = null; openConsole(); }
+  catch (err) { toast(errMsg(err)); }
+  finally { btn.disabled = false; btn.textContent = '저장'; }
+});
+
+/* ================= STAGE ================= */
+let CLS = null;           // {id,name,roster,settings,progress:{order,absent}}
+let current = 'draw', drawing = false;
+const SCREENS = ['draw', 'count', 'timer', 'feedback', 'done', 'qa'];
+const stagebox = $('#stagebox'), idle = $('#idle'), reelBox = $('#reelBox'), reel = $('#reel'), reveal = $('#reveal');
+const soundOn = () => read('stage-sound') !== 'off';
+
+function poolOf() { const used = new Set([...CLS.progress.order.map(o => o.name), ...CLS.progress.absent]); return CLS.roster.filter(n => !used.has(n)); }
+function curEntry() { const e = CLS && CLS.progress.order[CLS.progress.order.length - 1]; return e && e.status === 'drawn' ? e : null; }
+function persist() {
+  if (!CLS) return;
+  const pg = { order: CLS.progress.order, absent: CLS.progress.absent };
+  api('saveProgress', ADMIN, CLS.id, pg).catch(() => toast('진행 상황을 시트에 저장하지 못했습니다. 인터넷 연결을 확인해 주세요.'));
+}
+function showScreen(id) { SCREENS.forEach(s => { $('#s-' + s).hidden = s !== id; }); current = id; syncStageHeader(); }
+function syncStageHeader() {
+  if (!CLS || (CLS.settings && CLS.settings.type === 'qa')) return;
+  const total = CLS.roster.length - CLS.progress.absent.length;
+  const done = CLS.progress.order.filter(o => o.status === 'done').length;
+  $('#countPill').textContent = `${done} / ${total}`;
+  const lock = drawing || current === 'count' || current === 'timer';
+  $('#toConsole').disabled = lock;
+  $('#soundBtn').setAttribute('aria-pressed', String(soundOn()));
+  $('#soundBtn').textContent = soundOn() ? '소리 켬' : '소리 끔';
+  renderPanel();
+}
+async function openStage(id) {
+  stopBoardPolling();
+  try { CLS = await api('getClass', ADMIN, id); }
+  catch (e) { toast(errMsg(e)); return; }
+  const isQa = CLS.settings && CLS.settings.type === 'qa';
+  ['listBtn', 'soundBtn'].forEach(id => { $('#' + id).hidden = isQa; });
+  if (isQa) { openQAStage(); return; }
+  setMode('stage');
+  keepAwake();
+  stageResume();
+}
+
+/* ---------- Q&A projection ---------- */
+let qsInt = null, qsFilter = 'open';
+const qsSeen = new Set();
+function stopQAStage() { clearInterval(qsInt); qsInt = null; }
+function sortQ(list) { return list.slice().sort((a, b) => (a.answered - b.answered) || (b.likes - a.likes) || (a.ts - b.ts)); }
+function openQAStage() {
+  setMode('stage'); keepAwake();
+  showScreen('qa');
+  $('#qsTitle').textContent = CLS.settings.title || '특강 질문';
+  drawQR($('#qrQA'), qaLink(CLS.id));
+  $('#qsList').textContent = ''; $('#qsMeta').textContent = '질문을 불러오는 중…';
+  refreshQS();
+  stopQAStage();
+  qsInt = setInterval(() => { if (document.visibilityState === 'visible' && MODE === 'stage' && current === 'qa') refreshQS(); }, 5000);
+}
+async function refreshQS() { try { const d = await api('getBoard', CLS.id); if (d && d.type === 'qa') { B = d; renderQS(); } } catch (e) {} }
+function renderQS() {
+  const qs = B.questions || [];
+  const open = qs.filter(q => !q.answered).length;
+  $('#qsMeta').textContent = `질문 ${qs.length}개 · 답변 전 ${open}개`;
+  $('#countPill').textContent = `질문 ${qs.length}`;
+  const list = sortQ(qsFilter === 'open' ? qs.filter(q => !q.answered) : qs);
+  const ol = $('#qsList'); ol.textContent = '';
+  if (!list.length) { ol.appendChild(el('li', 'qs-empty', qs.length ? '답변하지 않은 질문이 없습니다.' : '아직 질문이 없습니다. QR을 찍고 첫 질문을 남겨 주세요.')); return; }
+  list.forEach((q, i) => {
+    const li = el('li', 'qs-item' + (q.answered ? ' answered' : '') + (!q.answered && i === 0 && q.likes > 0 ? ' top' : '') + (qsSeen.has(q.id) ? '' : ' qs-new'));
+    qsSeen.add(q.id);
+    const lkBox = el('div', 'qs-likes'); lkBox.append(el('b', null, q.likes), el('span', null, '공감'));
+    const body = el('div'); body.appendChild(el('p', 'qs-text', q.text));
+    if (q.orig) body.appendChild(el('p', 'qs-orig', '원문 · ' + q.orig));
+    const foot = el('div', 'qs-foot');
+    if (q.answered) foot.appendChild(el('span', 'badge-ans', '답변 완료'));
+    const a = el('button', 's-btn', q.answered ? '답변 전으로' : '답변 완료'); a.type = 'button'; a.onclick = () => markQ(CLS.id, q.id, !q.answered, a, renderQS);
+    const h = el('button', 's-btn', '숨기기'); h.type = 'button'; h.onclick = () => hideQ(CLS.id, q.id, h, renderQS);
+    foot.append(a, h); body.appendChild(foot);
+    li.append(lkBox, body); ol.appendChild(li);
+  });
+}
+async function markQ(c, id, val, btn, after) { btn.disabled = true; try { B = await api('markAnswered', c, id, val, ADMIN); after(); } catch (e) { toast(errMsg(e)); } finally { btn.disabled = false; } }
+async function hideQ(c, id, btn, after) { btn.disabled = true; try { B = await api('hideQuestion', c, id, ADMIN); after(); toast('질문을 숨겼습니다.'); } catch (e) { toast(errMsg(e)); btn.disabled = false; } }
+document.querySelectorAll('#qsFilter button').forEach(b => b.addEventListener('click', () => { qsFilter = b.dataset.f; document.querySelectorAll('#qsFilter button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderQS(); }));
+function stageResume() {
+  const e = curEntry();
+  if (e) { showRevealed(e, false); showScreen('draw'); }
+  else if (!poolOf().length && (CLS.progress.order.length || CLS.progress.absent.length)) { renderDone(); showScreen('done'); }
+  else { drawIdle(); showScreen('draw'); }
+}
+function drawIdle() {
+  stagebox.className = 'stagebox'; idle.hidden = false; reelBox.hidden = true; reveal.hidden = true; $('#qrReveal').hidden = true;
+  $('#idleMeta').textContent = `남은 발표자 ${poolOf().length}명 · 발표 순서 ${pad(CLS.progress.order.length + 1)}번`;
+}
+function randInt(n) { if (n <= 1) return 0; const a = new Uint32Array(1), lim = Math.floor(0x100000000 / n) * n; let x; do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim); return x % n; }
+function startDraw() {
+  const pool = poolOf();
+  if (drawing || !pool.length) return;
+  drawing = true; syncStageHeader(); Sound.unlock();
+  const pick = pool[randInt(pool.length)];
+  const N = reduceMotion() ? 6 : (pool.length === 1 ? 10 : 30);
+  const seq = []; let prev = null;
+  for (let i = 0; i < N - 1; i++) { let n = pool[randInt(pool.length)]; if (pool.length > 1) while (n === prev) n = pool[randInt(pool.length)]; seq.push(n); prev = n; }
+  if (pool.length > 1) while (seq[seq.length - 1] === pick) seq[seq.length - 1] = pool[randInt(pool.length)];
+  seq.push(pick);
+  const delays = seq.map((_, i) => Math.round(45 + 470 * Math.pow(i / (N - 1), 3.2)));
+  const total = delays.reduce((a, b) => a + b, 0);
+  const rnd = () => pool[randInt(pool.length)];
+  const lines = reel.querySelectorAll('.line'), col = reel.querySelector('.col');
+  idle.hidden = true; reveal.hidden = true; reelBox.hidden = false; reel.classList.remove('hold'); $('#qrReveal').hidden = true;
+  stagebox.className = 'stagebox drawing';
+  Sound.rollStart(total / 1000);
+  let i = 0, spent = 0;
+  const step = () => {
+    lines[0].textContent = i > 0 ? seq[i - 1] : rnd();
+    lines[1].textContent = seq[i];
+    lines[2].textContent = i < seq.length - 1 ? seq[i + 1] : rnd();
+    if (!reduceMotion() && col.animate) col.animate([{ transform: 'translateY(33.333%)' }, { transform: 'translateY(0)' }], { duration: Math.min(delays[i], 170), easing: 'ease-out' });
+    if (total - spent < 1600) stagebox.classList.add('tense');
+    if (delays[i] > 230) Sound.heart(); else Sound.reelTick();
+    spent += delays[i]; i++;
+    if (i < seq.length) setTimeout(step, delays[i - 1]);
+    else { Sound.rollStop(); reel.classList.add('hold'); setTimeout(() => doReveal(pick), 950); }
+  };
+  step();
+}
+function doReveal(name) {
+  CLS.progress.order.push({ name, status: 'drawn', used: null, over: 0 });
+  persist();
+  flash(''); Sound.reveal();
+  showRevealed(CLS.progress.order[CLS.progress.order.length - 1], true);
+  confetti();
+  drawing = false; syncStageHeader();
+}
+function showRevealed(e, animate) {
+  stagebox.className = 'stagebox revealed';
+  idle.hidden = true; reelBox.hidden = true; reveal.hidden = false;
+  $('#ordNo').textContent = pad(CLS.progress.order.indexOf(e) + 1);
+  $('#whoName').textContent = e.name;
+  reveal.classList.remove('in');
+  if (animate) { void reveal.offsetWidth; reveal.classList.add('in'); }
+  drawQR($('#qrReveal'), studentLink(CLS.id, e.name));
+}
+function afterPerson() { if (!poolOf().length) { renderDone(); showScreen('done'); } else { drawIdle(); showScreen('draw'); } }
+$('#drawBtn').addEventListener('click', e => { e.currentTarget.blur(); startDraw(); });
+$('#toStage').addEventListener('click', e => { e.currentTarget.blur(); startCountdown(); });
+$('#laterBtn').addEventListener('click', () => { if (!curEntry()) return; CLS.progress.order.pop(); persist(); drawIdle(); syncStageHeader(); });
+$('#absentBtn').addEventListener('click', () => { const e = curEntry(); if (!e) return; CLS.progress.order.pop(); CLS.progress.absent.push(e.name); persist(); afterPerson(); });
+
+/* countdown */
+function startCountdown() {
+  const e = curEntry(); if (!e || current === 'count') return;
+  Sound.unlock(); keepAwake();
+  $('#cdName').textContent = e.name;
+  showScreen('count');
+  const num = $('#cdNum'); let n = 3;
+  const tick = () => {
+    num.classList.toggle('go', n === 0);
+    num.textContent = n > 0 ? n : 'GO';
+    n > 0 ? Sound.beep() : Sound.go();
+    num.classList.remove('pop'); void num.offsetWidth; num.classList.add('pop');
+    if (n > 0) { n--; setTimeout(tick, 1000); } else setTimeout(startTimer, 650);
+  };
+  tick();
+}
+
+/* timer */
+let T = null, tInt = null;
+const tm = $('#s-timer');
+function startTimer() {
+  const e = curEntry(); if (!e) return;
+  const st = CLS.settings, two = st.p2 > 0;
+  T = { acc: 0, runStart: performance.now(), running: true, p2Start: st.p1 * 1000, p2: st.p2 * 1000, phase: 1, lastSec: null, ended: false };
+  tm.dataset.phase = '1'; tm.dataset.state = 'normal'; tm.classList.remove('paused');
+  $('#pausedTag').hidden = true; $('#pauseLbl').textContent = '일시정지';
+  $('#tWho').textContent = e.name;
+  $('#ph1').textContent = `${two ? '① ' : ''}${st.l1} ${fmt(st.p1)}`;
+  $('#ph2').textContent = `② ${st.l2} ${fmt(st.p2)}`; $('#ph2').hidden = !two;
+  $('#tl1').textContent = st.l1; $('#tl2').textContent = st.l2; $('#tl2').hidden = !two; $('#seg2b').hidden = !two;
+  const cols = two ? `${st.p1}fr ${st.p2}fr` : '1fr';
+  $('#track').style.gridTemplateColumns = cols; $('#trackLbl').style.gridTemplateColumns = cols;
+  $('#skipBtn').hidden = !two; $('#skipBtn').disabled = false; $('#skipLbl').textContent = `${st.l2}(으)로`;
+  $('#cue').classList.remove('show'); $('#stamp').classList.remove('show');
+  drawQR($('#qrTimer'), studentLink(CLS.id, e.name));
+  showScreen('timer');
+  clearInterval(tInt); tInt = setInterval(update, 100); update();
+}
+const elapsed = () => T.acc + (T.running ? performance.now() - T.runStart : 0);
+function update() {
+  if (!T) return;
+  const st = CLS.settings, el_ = elapsed(), end = T.p2Start + T.p2, two = T.p2 > 0;
+  if (two && T.phase === 1 && el_ >= T.p2Start) { T.phase = 2; tm.dataset.phase = '2'; T.lastSec = null; $('#skipBtn').disabled = true; if (el_ < end) cuePhase2(); }
+  const remain = (T.phase === 1 && two ? T.p2Start : end) - el_;
+  const secLeft = Math.max(0, Math.ceil(remain / 1000));
+  if (el_ >= end && !T.ended) { T.ended = true; timeUp(); }
+  const last = T.phase === 2 || !two;
+  const state = T.ended ? 'over' : secLeft <= 10 ? (last ? 'alarm' : 'warn') : 'normal';
+  if (tm.dataset.state !== state) tm.dataset.state = state;
+  const totalSec = st.p1 + st.p2;
+  if (T.ended) {
+    $('#clock').textContent = '+' + fmt(Math.floor((el_ - end) / 1000));
+    $('#phaseLabel').textContent = '시간 종료';
+    $('#sub').textContent = `발표 시간 ${fmt(Math.floor(el_ / 1000))} · 정해진 시간 ${fmt(totalSec)}`;
+  } else {
+    $('#clock').textContent = fmt(secLeft);
+    $('#phaseLabel').textContent = T.phase === 1 ? st.l1 : st.l2;
+    $('#sub').textContent = `전체 남은 시간 ${fmt(Math.ceil(Math.max(0, end - el_) / 1000))} / ${fmt(totalSec)}`;
+  }
+  $('#fill1').style.width = Math.min(100, Math.min(el_, T.p2Start) / (st.p1 * 1000) * 100) + '%';
+  if (two) $('#fill2').style.width = Math.max(0, Math.min(100, (el_ - T.p2Start) / T.p2 * 100)) + '%';
+  if (T.running && !T.ended && secLeft <= 10 && secLeft > 0 && secLeft !== T.lastSec) {
+    T.lastSec = secLeft;
+    if (last) { secLeft <= 3 ? Sound.heart() : Sound.tick(true); } else Sound.tick(false);
+  }
+}
+function cuePhase2() {
+  Sound.chime();
+  const c = $('#cue'); c.querySelector('.band').textContent = `② ${CLS.settings.l2} ${fmt(CLS.settings.p2)}`;
+  c.classList.remove('show'); void c.offsetWidth; c.classList.add('show');
+}
+function timeUp() { Sound.buzzer(); flash('red'); const s = $('#stamp'); s.classList.remove('show'); void s.offsetWidth; s.classList.add('show'); $('#skipBtn').disabled = true; }
+function togglePause() {
+  if (!T) return;
+  if (T.running) { T.acc = elapsed(); T.running = false; tm.classList.add('paused'); $('#pausedTag').hidden = false; $('#pauseLbl').textContent = '계속'; }
+  else { T.runStart = performance.now(); T.running = true; tm.classList.remove('paused'); $('#pausedTag').hidden = true; $('#pauseLbl').textContent = '일시정지'; }
+  update();
+}
+function skipPhase() { if (T && T.phase === 1 && T.p2 > 0) { T.p2Start = elapsed(); update(); } }
+function endTalk() {
+  if (!T) return;
+  const el_ = elapsed(), end = T.p2Start + T.p2;
+  clearInterval(tInt); tInt = null; T = null;
+  const e = curEntry(); if (!e) return;
+  e.used = Math.round(el_ / 1000); e.over = Math.max(0, Math.round((el_ - end) / 1000)); e.status = 'done';
+  persist();
+  showFeedback(e);
+}
+$('#pauseBtn').addEventListener('click', e => { e.currentTarget.blur(); togglePause(); });
+$('#skipBtn').addEventListener('click', e => { e.currentTarget.blur(); skipPhase(); });
+$('#endBtn').addEventListener('click', e => { e.currentTarget.blur(); endTalk(); });
+
+/* feedback */
+let fbInt = null;
+function showFeedback(e) {
+  clearInterval(fbInt); fbInt = null;
+  $('#fbName').textContent = e.name;
+  $('#usedTime').textContent = fmt(e.used);
+  $('#usedOver').textContent = e.over ? ` · ${e.over}초 초과` : '';
+  $('#usedChip').classList.toggle('over', e.over > 0);
+  const cards = $('#fbCards'); cards.textContent = '';
+  CLS.settings.cats.forEach(c => { const d = el('div', 'fb-card'); d.appendChild(el('h3', null, c)); if (CAT_DESC[c]) d.appendChild(el('p', null, CAT_DESC[c])); cards.appendChild(d); });
+  $('#fbTimer').hidden = !(CLS.settings.fb > 0);
+  $('#fbClock').textContent = fmt(CLS.settings.fb); $('#fbBtn').textContent = '메모 타이머 시작';
+  $('#nextLbl').textContent = poolOf().length ? '다음 발표자 뽑기' : '발표 마무리';
+  drawQR($('#qrFb'), studentLink(CLS.id, e.name));
+  showScreen('feedback');
+}
+function startFb() {
+  clearInterval(fbInt); Sound.unlock();
+  const endAt = performance.now() + CLS.settings.fb * 1000; let last = null;
+  const run = () => {
+    const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000));
+    $('#fbClock').textContent = fmt(left);
+    if (left <= 5 && left > 0 && left !== last) { last = left; Sound.tick(false); }
+    if (left === 0) { clearInterval(fbInt); fbInt = null; Sound.chime(); $('#fbBtn').textContent = '다시 시작'; }
+  };
+  $('#fbBtn').textContent = '처음부터 다시'; run(); fbInt = setInterval(run, 200);
+}
+function nextFromFeedback() { clearInterval(fbInt); fbInt = null; afterPerson(); }
+$('#fbBtn').addEventListener('click', e => { e.currentTarget.blur(); startFb(); });
+$('#nextBtn').addEventListener('click', e => { e.currentTarget.blur(); nextFromFeedback(); });
+
+/* done */
+function renderDone() {
+  const tb = $('#doneBody'); tb.textContent = '';
+  const lines = [];
+  CLS.progress.order.forEach((e, i) => {
+    const tr = el('tr');
+    [pad(i + 1), e.name, e.used != null ? fmt(e.used) : '-', e.over ? `+${e.over}초` : ''].forEach((v, k) => { const td = el('td', k === 0 ? 'n' : (k === 3 && v ? 'over' : null), v); tr.appendChild(td); });
+    tb.appendChild(tr);
+    lines.push(`${i + 1}. ${e.name}  ${e.used != null ? fmt(e.used) : '-'}${e.over ? `  +${e.over}초 초과` : ''}`);
+  });
+  const ab = CLS.progress.absent.join(', ');
+  $('#doneAbsent').textContent = ab ? `결석: ${ab}` : '';
+  if (ab) lines.push(`결석: ${ab}`);
+  $('#copyText').textContent = lines.join('\n');
+  drawQR($('#qrDone'), boardLink(CLS.id));
+}
+$('#copyBtn').addEventListener('click', e => {
+  const btn = e.currentTarget, text = $('#copyText').textContent;
+  const ok = () => { btn.textContent = '복사했습니다'; setTimeout(() => { btn.textContent = '발표 순서·시간 복사'; }, 2000); };
+  const fallback = () => { const pre = $('#copyText'); pre.style.position = 'static'; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = '선택된 글을 복사하세요 (Ctrl/⌘+C)'; };
+  try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (err) { fallback(); }
+});
+$('#doneConsole').addEventListener('click', () => openConsole());
+
+/* panel, header tools */
+const panel = $('#panel');
+function renderPanel() {
+  if (!CLS) return;
+  const ol = $('#orderList'); ol.textContent = '';
+  if (!CLS.progress.order.length) ol.appendChild(el('li', 'empty', '아직 뽑힌 발표자가 없습니다.'));
+  CLS.progress.order.forEach((e, i) => {
+    const li = el('li'); const st = el('span', 'st');
+    if (e.status === 'done') { st.textContent = fmt(e.used) + (e.over ? ` · +${e.over}초` : ''); if (e.over) st.classList.add('over'); } else { st.textContent = '무대 위'; st.classList.add('live'); }
+    li.append(el('span', 'n', pad(i + 1)), el('span', 'nm', e.name), st); ol.appendChild(li);
+  });
+  const pool = poolOf();
+  $('#remainHead').textContent = `남은 발표자 ${pool.length}명`;
+  const rc = $('#remainChips'); rc.textContent = ''; pool.forEach(n => rc.appendChild(el('span', 'chip', n)));
+  $('#absentSec').hidden = !CLS.progress.absent.length;
+  const ac = $('#absentChips'); ac.textContent = ''; CLS.progress.absent.forEach(n => ac.appendChild(el('span', 'chip', n)));
+}
+$('#listBtn').addEventListener('click', e => { e.currentTarget.blur(); panel.classList.toggle('open'); });
+$('#panelClose').addEventListener('click', () => panel.classList.remove('open'));
+$('#soundBtn').addEventListener('click', e => { e.currentTarget.blur(); store('stage-sound', soundOn() ? 'off' : 'on'); if (soundOn()) Sound.unlock(); syncStageHeader(); });
+function toggleFs() {
+  const done = ok => { if (!ok) toast('이 창에서는 전체화면 버튼이 막혀 있습니다. 브라우저 전체화면(F11 또는 ⌃⌘F)을 사용해 주세요.'); };
+  try {
+    if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().then(() => done(true), () => done(false));
+    else if (document.fullscreenElement) document.exitFullscreen();
+    else done(false);
+  } catch (e) { done(false); }
+}
+$('#fsBtn').addEventListener('click', e => { e.currentTarget.blur(); toggleFs(); });
+$('#toConsole').addEventListener('click', () => openConsole());
+$('#qrBtn').addEventListener('click', e => { e.currentTarget.blur(); const qa = CLS.settings && CLS.settings.type === 'qa'; drawQR($('#qrAll'), qa ? qaLink(CLS.id) : boardLink(CLS.id)); $('#qrAll .qr-cap').textContent = qa ? '질문 남기기' : '전체 피드백 보드'; $('#qrOverlay').hidden = false; });
+$('#qrClose').addEventListener('click', () => { $('#qrOverlay').hidden = true; });
+let wake = null;
+async function keepAwake() { try { if (!wake && navigator.wakeLock) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
+
+document.addEventListener('keydown', ev => {
+  if (MODE !== 'stage' || ev.repeat) return;
+  if (ev.target.closest && ev.target.closest('textarea,input,select')) return;
+  const k = ev.key;
+  if (!$('#qrOverlay').hidden) { if (k === 'Escape' || k === ' ') { ev.preventDefault(); $('#qrOverlay').hidden = true; } return; }
+  if (k === ' ' || k === 'Spacebar') {
+    ev.preventDefault();
+    if (current === 'draw') { if (!reveal.hidden) startCountdown(); else if (!drawing) startDraw(); }
+    else if (current === 'timer') togglePause();
+    else if (current === 'feedback') nextFromFeedback();
+    return;
+  }
+  if (current === 'timer') {
+    if (k === 'Enter') { ev.preventDefault(); endTalk(); return; }
+    if (k === 'ArrowRight') { ev.preventDefault(); skipPhase(); return; }
+  }
+  if (k === 'f' || k === 'F') toggleFs();
+  else if (k === 'm' || k === 'M') $('#soundBtn').click();
+  else if (k === 'l' || k === 'L') panel.classList.toggle('open');
+  else if (k === 'q' || k === 'Q') $('#qrBtn').click();
+  else if (k === 'Escape') panel.classList.remove('open');
+});
+
+/* sound (synthesized) */
+const Sound = (() => {
+  let ctx = null, master = null, noiseBuf = null, roll = null;
+  const on = () => soundOn();
+  function ac() { try { if (!ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ctx = new C(); master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination); } if (ctx.state === 'suspended') ctx.resume(); return ctx; } catch (e) { return null; } }
+  function nb() { if (!noiseBuf) { const len = ctx.sampleRate * 2; noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; } return noiseBuf; }
+  function tone(f, dur, o = {}) {
+    if (!on()) return; const c = ac(); if (!c) return;
+    const t = c.currentTime + (o.when || 0), osc = c.createOscillator(), g = c.createGain();
+    osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(f, t); if (o.glide) osc.frequency.exponentialRampToValueAtTime(o.glide, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.gain ?? 0.2, t + (o.attack || 0.005)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g);
+    if (o.lp) { const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = o.lp; g.connect(fl); fl.connect(master); } else g.connect(master);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  function noise(dur, o = {}) {
+    if (!on()) return; const c = ac(); if (!c) return;
+    const t = c.currentTime + (o.when || 0), src = c.createBufferSource(); src.buffer = nb();
+    const f = c.createBiquadFilter(); f.type = o.ft || 'bandpass'; f.frequency.value = o.freq || 2000; f.Q.value = o.q || 0.7;
+    const g = c.createGain(); g.gain.setValueAtTime(o.gain ?? 0.2, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + dur + 0.05);
+  }
+  return {
+    unlock() { if (on()) ac(); },
+    tick(s) { tone(s ? 1400 : 1800, 0.045, { type: 'triangle', gain: s ? 0.3 : 0.12 }); },
+    reelTick() { noise(0.035, { freq: 3200, q: 1.2, gain: 0.2 }); tone(2400, 0.02, { type: 'square', gain: 0.03 }); },
+    heart() { tone(72, 0.16, { gain: 0.6, glide: 45 }); tone(64, 0.2, { gain: 0.45, glide: 40, when: 0.2 }); },
+    rollStart(dur) {
+      if (!on()) return; const c = ac(); if (!c) return; const t = c.currentTime;
+      const src = c.createBufferSource(); src.buffer = nb(); src.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 0.6;
+      const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.3); g.gain.linearRampToValueAtTime(0.17, t + Math.max(0.5, dur));
+      const lfo = c.createOscillator(); lfo.frequency.value = 17; const lg = c.createGain(); lg.gain.value = 0.05;
+      lfo.connect(lg); lg.connect(g.gain); src.connect(f); f.connect(g); g.connect(master); src.start(t); lfo.start(t); roll = { src, g, lfo };
+    },
+    rollStop() { if (!roll || !ctx) return; const t = ctx.currentTime; try { roll.g.gain.cancelScheduledValues(t); roll.g.gain.setValueAtTime(0.1, t); roll.g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08); roll.src.stop(t + 0.12); roll.lfo.stop(t + 0.12); } catch (e) {} roll = null; },
+    reveal() { noise(1.5, { ft: 'highpass', freq: 5000, gain: 0.35 }); noise(0.3, { ft: 'lowpass', freq: 180, gain: 0.8 }); [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 1.4, { type: 'triangle', gain: 0.16, when: 0.05 * i, attack: 0.01 })); },
+    beep() { tone(660, 0.2, { gain: 0.28 }); },
+    go() { tone(988, 0.6, { gain: 0.3 }); tone(1318, 0.6, { gain: 0.16, when: 0.05 }); },
+    chime() { tone(1046.5, 1.1, { gain: 0.26 }); tone(1568, 1.3, { gain: 0.2, when: 0.18 }); },
+    buzzer() { tone(146, 1.1, { type: 'square', gain: 0.22, lp: 1400 }); tone(155, 1.1, { type: 'sawtooth', gain: 0.12, lp: 1400 }); }
+  };
+})();
+
+/* effects */
+function flash(kind) { const f = $('#flash'); f.className = ''; void f.offsetWidth; f.className = 'go' + (kind === 'red' ? ' red' : ''); }
+const cv = $('#confetti'), cx = cv.getContext('2d');
+function confetti() {
+  if (reduceMotion() || !cx) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+  cv.width = W * dpr; cv.height = H * dpr; cx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cs = getComputedStyle(document.documentElement);
+  const cols = ['--spot', '--s-ink', '--curtain', '--cue', '--alarm'].map(v => cs.getPropertyValue(v).trim());
+  const sc = Math.max(0.7, H / 900), P = [];
+  for (let i = 0; i < 170; i++) { const l = i % 2 === 0; P.push({ x: l ? W * 0.1 : W * 0.9, y: H * 0.98, vx: (l ? 1 : -1) * (3 + Math.random() * 9) * sc, vy: -(11 + Math.random() * 12) * sc, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.4, w: 6 + Math.random() * 8, h: 4 + Math.random() * 6, c: cols[i % cols.length] }); }
+  const t0 = performance.now();
+  const frame = t => {
+    const k = (t - t0) / 2800; cx.clearRect(0, 0, W, H);
+    P.forEach(p => { p.vy += 0.33 * sc; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr; cx.save(); cx.globalAlpha = Math.max(0, 1 - k); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c; cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)) + 1); cx.restore(); });
+    if (k < 1) requestAnimationFrame(frame); else cx.clearRect(0, 0, W, H);
+  };
+  requestAnimationFrame(frame);
+}
+
+/* ================= BOARD ================= */
+let token = read('osmu-token');
+if (!token) { token = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)); store('osmu-token', token); }
+let liked; try { liked = new Set(JSON.parse(read('osmu-liked') || '[]')); } catch (e) { liked = new Set(); }
+const saveLiked = () => store('osmu-liked', JSON.stringify([...liked]));
+let B = { roster: [], cats: [], memos: [], talkLikes: {}, updated: 0 };
+const BS = { c: '', view: 'write', pid: '', cat: '', q: '', sort: 'order', detail: null, dcat: '전체', dsort: 'likes' };
+let pollT = null;
+function stopBoardPolling() { clearInterval(pollT); pollT = null; }
+const lk = (kind, target) => `${BS.c}:${kind}:${target}`;
+
+async function openBoard(c, view, p) {
+  BS.c = c; BS.view = view || 'write'; BS.pid = p || ''; BS.detail = null; BS.dcat = '전체';
+  stopQAStage();
+  try { B = await api('getBoard', c); }
+  catch (e) { toast(errMsg(e)); B = { roster: [], cats: [], memos: [], talkLikes: {}, updated: 0 }; }
+  if (B.type === 'qa') {
+    setMode('qa'); renderQA();
+    stopBoardPolling();
+    pollT = setInterval(() => { if (document.visibilityState === 'visible' && MODE === 'qa') refreshBoard(); }, 6000);
+    return;
+  }
+  setMode('board');
+  if (BS.pid && !B.roster.includes(BS.pid)) BS.pid = '';
+  if (!BS.cat || !B.cats.includes(BS.cat)) BS.cat = B.cats[0] || '';
+  buildBoardStatic(); renderBoard();
+  stopBoardPolling();
+  pollT = setInterval(() => { if (document.visibilityState === 'visible' && MODE === 'board') refreshBoard(); }, 10000);
+}
+async function refreshBoard() { try { B = await api('getBoard', BS.c); renderBoard(); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (MODE === 'board' || MODE === 'qa')) refreshBoard(); });
+
+function ago(ts) { const d = (Date.now() - ts) / 1000; if (d < 60) return '방금'; if (d < 3600) return Math.floor(d / 60) + '분 전'; const t = new Date(ts); if (d < 86400) return t.getHours() + ':' + String(t.getMinutes()).padStart(2, '0'); return (t.getMonth() + 1) + '/' + t.getDate(); }
+function bstats() {
+  const s = {};
+  B.roster.forEach((n, i) => { s[n] = { name: n, order: i, memos: 0, likes: B.talkLikes[n] || 0, empathy: 0, byCat: {} }; });
+  B.memos.forEach(m => { const x = s[m.pid]; if (!x) return; x.memos++; x.empathy += m.likes; x.byCat[m.cat] = (x.byCat[m.cat] || 0) + 1; });
+  return s;
+}
+function statLine(box, x) { box.textContent = ''; [[x.likes, '좋아요'], [x.memos, '메모'], [x.empathy, '공감']].forEach(([v, l]) => { const sp = el('span'); sp.append(el('b', null, v), document.createTextNode(l)); box.appendChild(sp); }); }
+function memoCard(m, showWho) {
+  const c = el('article', 'memo'), top = el('div', 'memo-top');
+  top.append(el('span', 'tag', m.cat)); if (showWho) top.append(el('span', 'whoname', m.pid)); top.append(el('time', null, ago(m.ts)));
+  const foot = el('div', 'memo-foot'), key = lk('memo', m.id);
+  const b = el('button', 'empathy', `공감 ${m.likes}`); b.type = 'button'; b.setAttribute('aria-pressed', String(liked.has(key))); b.setAttribute('aria-label', `이 메모에 공감 (현재 ${m.likes})`);
+  b.addEventListener('click', () => like('memo', m.id, b)); foot.append(b);
+  if (ADMIN) { const h = el('button', 'hide', '숨기기'); h.type = 'button'; h.addEventListener('click', () => hideMemo(m.id, h)); foot.append(h); }
+  c.append(top, el('p', 'memo-text', m.text));
+  if (m.orig) c.appendChild(transBox(m.orig));
+  c.appendChild(foot); return c;
+}
+function transBox(orig) {
+  const t = el('div', 'trans');
+  const b = el('button', null, '자동 번역 · 원문 보기'); b.type = 'button';
+  const o = el('p', 'orig', orig); o.hidden = true; o.style.margin = '0';
+  b.addEventListener('click', () => { o.hidden = !o.hidden; b.textContent = o.hidden ? '자동 번역 · 원문 보기' : '원문 접기'; });
+  t.append(b, o); return t;
+}
+function fillList(box, list, showWho, emptyText) { box.textContent = ''; if (!list.length) { box.appendChild(el('div', 'empty', emptyText)); return; } list.forEach(m => box.appendChild(memoCard(m, showWho))); }
+async function like(kind, target, btn) {
+  if (btn) btn.disabled = true; const key = lk(kind, target);
+  try { B = await api('toggleLike', BS.c, kind, target, token); liked.has(key) ? liked.delete(key) : liked.add(key); saveLiked(); renderBoard(); }
+  catch (e) { toast(errMsg(e)); } finally { if (btn) btn.disabled = false; }
+}
+async function hideMemo(id, btn) { btn.disabled = true; try { B = await api('hideMemo', BS.c, id, ADMIN); renderBoard(); toast('메모를 숨겼습니다.'); } catch (e) { toast(errMsg(e)); btn.disabled = false; } }
+
+const pick = $('#pick'), ta = $('#memoText');
+function buildBoardStatic() {
+  pick.textContent = '';
+  const ph = el('option', null, '발표자 선택'); ph.value = ''; pick.appendChild(ph);
+  B.roster.forEach(n => { const o = el('option', null, n); o.value = n; pick.appendChild(o); });
+  pick.value = BS.pid;
+  const g = $('#catGroup'); g.textContent = '';
+  B.cats.forEach(c => {
+    const lab = el('label'), inp = el('input'); inp.type = 'radio'; inp.name = 'cat'; inp.value = c; inp.checked = c === BS.cat;
+    inp.addEventListener('change', () => { BS.cat = c; $('#catHint').textContent = CAT_HINT(c); });
+    lab.append(inp, el('span', null, c)); g.appendChild(lab);
+  });
+  $('#catHint').textContent = CAT_HINT(BS.cat);
+  const dc = $('#dCats'); dc.textContent = '';
+  ['전체', ...B.cats].forEach(c => { const b = el('button', null, c); b.type = 'button'; b.dataset.cat = c; b.addEventListener('click', () => { BS.dcat = c; renderDetail(); }); dc.appendChild(b); });
+}
+pick.addEventListener('change', () => { BS.pid = pick.value; renderWrite(); });
+ta.addEventListener('input', () => { $('#count').textContent = `${ta.value.length} / 300`; });
+$('#talkLike').addEventListener('click', e => { if (BS.pid) like('talk', BS.pid, e.currentTarget); else toast('먼저 발표자를 골라 주세요.'); });
+$('#memoForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = ta.value.trim();
+  if (!BS.pid) { toast('먼저 발표자를 골라 주세요.'); pick.focus(); return; }
+  if (!text) { toast('메모 내용을 입력해 주세요.'); ta.focus(); return; }
+  const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = '남기는 중…';
+  try { B = await api('addMemo', BS.c, BS.pid, BS.cat, text, token); ta.value = ''; $('#count').textContent = '0 / 300'; renderBoard(); toast(`${BS.pid} 님 발표에 메모를 남겼습니다.`); }
+  catch (err) { toast(errMsg(err)); }
+  finally { btn.disabled = false; btn.textContent = '익명으로 남기기'; }
+});
+function renderWrite() {
+  const st = bstats(), x = BS.pid && st[BS.pid];
+  $('#heroName').textContent = x ? x.name : '발표자를 고르세요';
+  if (x) statLine($('#heroStats'), x); else $('#heroStats').textContent = '화면의 QR을 찍으면 그 발표자가 자동으로 선택됩니다.';
+  const tl = $('#talkLike'); tl.setAttribute('aria-pressed', String(!!BS.pid && liked.has(lk('talk', BS.pid)))); $('#talkLikeN').textContent = x ? x.likes : 0; tl.disabled = !BS.pid;
+  $('#listTitle').textContent = x ? `${x.name} 님 발표에 남겨진 메모` : '남겨진 메모';
+  const list = BS.pid ? B.memos.filter(m => m.pid === BS.pid).sort((a, b) => b.ts - a.ts) : [];
+  fillList($('#writeList'), list, false, BS.pid ? '첫 메모를 남겨 주세요.' : '발표자를 고르면 메모가 보입니다.');
+  $('#updated').textContent = B.updated ? `${ago(B.updated)} 갱신` : '';
+}
+$('#q').addEventListener('input', e => { BS.q = e.target.value.trim(); renderGrid(); });
+$('#sortSel').addEventListener('change', e => { BS.sort = e.target.value; renderGrid(); });
+$('#dBack').addEventListener('click', () => { BS.detail = null; renderStudents(); window.scrollTo(0, 0); });
+$('#dSort').addEventListener('change', e => { BS.dsort = e.target.value; renderDetail(); });
+$('#dWrite').addEventListener('click', () => { BS.pid = BS.detail; pick.value = BS.pid; goTab('write'); });
+function openDetail(name) { BS.detail = name; BS.dcat = '전체'; goTab('students'); window.scrollTo(0, 0); }
+function renderGrid() {
+  const st = bstats(); let rows = B.roster.map(n => st[n]);
+  if (BS.q) rows = rows.filter(r => r.name.includes(BS.q));
+  if (BS.sort === 'likes') rows.sort((a, b) => b.likes - a.likes || a.order - b.order);
+  else if (BS.sort === 'memos') rows.sort((a, b) => b.memos - a.memos || a.order - b.order);
+  const g = $('#grid'); g.textContent = '';
+  if (!rows.length) { g.appendChild(el('div', 'empty', B.roster.length ? '찾는 이름이 없습니다.' : '명단이 없습니다.')); return; }
+  rows.forEach(r => {
+    const c = el('button', 'scard' + (r.memos || r.likes ? '' : ' none')); c.type = 'button';
+    const nums = el('span', 'nums'), a = el('span'), b = el('span');
+    a.append(el('b', null, r.likes), document.createTextNode('♥')); b.append(el('b', null, r.memos), document.createTextNode('메모')); nums.append(a, b);
+    c.append(el('span', 'nm', r.name), nums, el('span', 'cats', B.cats.map(k => `${shortCat(k)} ${r.byCat[k] || 0}`).join(' · ')));
+    c.addEventListener('click', () => openDetail(r.name)); g.appendChild(c);
+  });
+}
+function renderDetail() {
+  const x = bstats()[BS.detail]; if (!x) return;
+  $('#dName').textContent = x.name; statLine($('#dStats'), x);
+  $('#dCats').querySelectorAll('button').forEach(b => { const n = b.dataset.cat === '전체' ? x.memos : (x.byCat[b.dataset.cat] || 0); b.textContent = `${b.dataset.cat} ${n}`; b.setAttribute('aria-pressed', String(b.dataset.cat === BS.dcat)); });
+  $('#dSort').value = BS.dsort;
+  const list = B.memos.filter(m => m.pid === x.name && (BS.dcat === '전체' || m.cat === BS.dcat));
+  list.sort(BS.dsort === 'likes' ? (a, b) => b.likes - a.likes || b.ts - a.ts : (a, b) => b.ts - a.ts);
+  fillList($('#dList'), list, false, '아직 남겨진 메모가 없습니다.');
+}
+function renderStudents() { const inD = !!BS.detail && B.roster.includes(BS.detail); $('#studentsHome').hidden = inD; $('#detail').hidden = !inD; inD ? renderDetail() : renderGrid(); }
+function rankChart(box, rows, key, label) {
+  box.textContent = '';
+  const sorted = rows.slice().sort((a, b) => b[key] - a[key] || a.order - b.order), max = Math.max(1, ...sorted.map(r => r[key]));
+  let pv = null, pr = 0;
+  sorted.forEach((r, i) => {
+    const rank = r[key] === pv ? pr : i + 1; pv = r[key]; pr = rank;
+    const li = el('li', 'rrow' + (rank <= 3 && r[key] > 0 ? ' top' : '')); li.tabIndex = 0;
+    li.title = `${r.name} · 좋아요 ${r.likes} · 메모 ${r.memos} · 공감 ${r.empathy}`; li.setAttribute('aria-label', `${rank}위 ${r.name}, ${label} ${r[key]}`);
+    const bar = el('span', 'rb'), fill = el('i'); fill.style.width = (r[key] / max * 100) + '%'; bar.appendChild(fill);
+    li.append(el('span', 'rk', rank), el('span', 'rn', r.name), bar, el('span', 'rv' + (r[key] ? '' : ' zero'), r[key]));
+    li.addEventListener('click', () => openDetail(r.name)); li.addEventListener('keydown', e => { if (e.key === 'Enter') openDetail(r.name); });
+    box.appendChild(li);
+  });
+}
+function renderRank() {
+  const st = bstats(), rows = B.roster.map(n => st[n]);
+  const tiles = $('#tiles'); tiles.textContent = '';
+  [['남겨진 메모', B.memos.length, ''], ['발표 좋아요', rows.reduce((a, r) => a + r.likes, 0), ''], ['메모 공감', rows.reduce((a, r) => a + r.empathy, 0), ''], ['메모를 받은 발표자', rows.filter(r => r.memos > 0).length, ` / ${B.roster.length}`]]
+    .forEach(([l, v, suf]) => { const t = el('div', 'tile'), b = el('b', null, v); if (suf) b.appendChild(el('small', null, suf)); t.append(el('span', null, l), b); tiles.appendChild(t); });
+  rankChart($('#rankLikes'), rows, 'likes', '좋아요'); rankChart($('#rankMemos'), rows, 'memos', '메모');
+  fillList($('#bestList'), B.memos.filter(m => m.likes > 0).sort((a, b) => b.likes - a.likes || b.ts - a.ts).slice(0, 10), true, '아직 공감을 받은 메모가 없습니다.');
+}
+function goTab(v) { BS.view = v; renderBoard(); }
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { if (t.dataset.view === 'students') BS.detail = null; goTab(t.dataset.view); }));
+/* ---------- Q&A (student) ---------- */
+let qaSort = 'likes';
+function syncQaSort() { document.querySelectorAll('#qaSort button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === qaSort))); }
+document.querySelectorAll('#qaSort button').forEach(b => b.addEventListener('click', () => { qaSort = b.dataset.s; syncQaSort(); renderQA(); }));
+$('#qaText').addEventListener('input', e => { $('#qaCount').textContent = `${e.target.value.length} / 300`; });
+$('#qaForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const t = $('#qaText').value.trim();
+  if (!t) { toast('질문 내용을 입력해 주세요.'); $('#qaText').focus(); return; }
+  const btn = $('#qaSubmit'); btn.disabled = true; btn.textContent = '보내는 중…';
+  try { B = await api('addQuestion', BS.c, t, token); $('#qaText').value = ''; $('#qaCount').textContent = '0 / 300'; qaSort = 'new'; syncQaSort(); renderQA(); toast('질문을 남겼습니다.'); }
+  catch (err) { toast(errMsg(err)); }
+  finally { btn.disabled = false; btn.textContent = '익명으로 질문하기'; }
+});
+function renderQA() {
+  $('#qaTitle').textContent = B.title || '특강 질문';
+  const qs = B.questions || [];
+  $('#qaN').textContent = qs.length ? `${qs.length}개` : '';
+  const list = qaSort === 'new' ? qs.slice().sort((a, b) => b.ts - a.ts) : sortQ(qs);
+  const box = $('#qaList'); box.textContent = '';
+  if (!list.length) { box.appendChild(el('div', 'empty', '아직 질문이 없습니다. 첫 질문을 남겨 주세요.')); return; }
+  list.forEach(q => {
+    const c = el('article', 'memo q-card' + (q.answered ? ' answered' : ''));
+    const top = el('div', 'memo-top');
+    if (q.answered) top.appendChild(el('span', 'badge-ans', '답변 완료'));
+    top.appendChild(el('time', null, ago(q.ts)));
+    const foot = el('div', 'memo-foot'), key = lk('q', q.id);
+    const b = el('button', 'empathy', `공감 ${q.likes}`); b.type = 'button';
+    b.setAttribute('aria-pressed', String(liked.has(key))); b.setAttribute('aria-label', `이 질문에 공감 (현재 ${q.likes})`);
+    b.addEventListener('click', () => like('q', q.id, b));
+    foot.appendChild(b);
+    if (ADMIN) {
+      const a = el('button', 'hide', q.answered ? '답변 전으로' : '답변 완료'); a.type = 'button'; a.style.marginLeft = 'auto'; a.onclick = () => markQ(BS.c, q.id, !q.answered, a, renderQA);
+      const h = el('button', 'hide', '숨기기'); h.type = 'button'; h.style.marginLeft = '0'; h.onclick = () => hideQ(BS.c, q.id, h, renderQA);
+      foot.append(a, h);
+    }
+    c.append(top, el('p', 'memo-text q-text', q.text));
+    if (q.orig) c.appendChild(transBox(q.orig));
+    c.appendChild(foot); box.appendChild(c);
+  });
+}
+function renderBoard() {
+  if (MODE === 'qa') { renderQA(); return; }
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.view === BS.view)));
+  ['write', 'students', 'rank'].forEach(v => { $('#v-' + v).hidden = v !== BS.view; });
+  if (BS.view === 'write') renderWrite(); else if (BS.view === 'students') renderStudents(); else renderRank();
+}
+
+/* ================= boot ================= */
+if (ADMIN && CFG.c && CFG.m === 'stage') openStage(CFG.c);
+else if (CFG.c) openBoard(CFG.c, CFG.view === 'board' ? 'students' : CFG.view === 'rank' ? 'rank' : 'write', CFG.p);
+else if (ADMIN) openConsole();
+else setMode('home');
+})();
+</script>
+</body>
+</html>
