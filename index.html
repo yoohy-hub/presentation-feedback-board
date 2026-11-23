@@ -376,6 +376,7 @@ tr:last-child td{border-bottom:none}
 .qs-head h2{color:var(--s-ink)}
 .qs-seg button{background:transparent;color:var(--s-ink);border-color:var(--s-line)}
 .qs-seg button[aria-pressed="true"]{background:var(--s-ink);color:var(--stage);border-color:var(--s-ink)}
+.order-seg{justify-content:center}.order-seg button{font-size:15px;padding:8px 16px}
 .qs-list{list-style:none;margin:0;padding:0 4px 0 0;display:flex;flex-direction:column;gap:12px;overflow:auto;min-height:0}
 .qs-item{display:grid;grid-template-columns:72px minmax(0,1fr);gap:16px;align-items:start;background:var(--stage-2);border:1px solid var(--s-line);border-radius:14px;padding:16px 18px}
 .qs-item.top{border-color:var(--spot)}
@@ -500,6 +501,7 @@ tr:last-child td{border-bottom:none}
           <div class="idle" id="idle">
             <p class="ask">다음 무대의 <span>주인공</span>은?</p>
             <div class="ticket-wrap"><button class="ticket" id="drawBtn" type="button">발표자 뽑기 <span class="kbd">SPACE</span></button></div>
+            <div class="seg qs-seg order-seg" id="orderMode" role="group" aria-label="발표 순서 정하는 방식"><button type="button" data-o="random" aria-pressed="true">🎲 랜덤 추첨</button><button type="button" data-o="list" aria-pressed="false">📋 명단 순서대로</button></div>
             <span class="meta-line" id="idleMeta"></span>
           </div>
           <div id="reelBox" hidden>
@@ -1006,6 +1008,7 @@ async function openStage(id) {
   stopBoardPolling();
   try { CLS = await api('getClass', ADMIN, id); }
   catch (e) { toast(errMsg(e)); return; }
+  deferred.length = 0;
   const isQa = CLS.settings && CLS.settings.type === 'qa';
   ['listBtn', 'soundBtn'].forEach(id => { $('#' + id).hidden = isQa; });
   if (isQa) { openQAStage(); return; }
@@ -1061,17 +1064,36 @@ function stageResume() {
   else if (!poolOf().length && (CLS.progress.order.length || CLS.progress.absent.length)) { renderDone(); showScreen('done'); }
   else { drawIdle(); showScreen('draw'); }
 }
+/* 발표 순서 방식: 랜덤 추첨 / 명단 순서대로 — 수업별로 이 브라우저에 기억합니다. */
+const deferred = [];  // 명단 순서 모드에서 '나중에'를 누른 사람은 맨 뒤로 보냅니다.
+const orderKey = () => 'pfb-order-' + (CLS ? CLS.id : '');
+function orderMode() { return read(orderKey()) === 'list' ? 'list' : 'random'; }
+function listPool() { const p = poolOf(); return p.filter(n => !deferred.includes(n)).concat(deferred.filter(n => p.includes(n))); }
+function syncOrderMode() {
+  const m = orderMode();
+  document.querySelectorAll('#orderMode button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.o === m)));
+  $('#drawBtn').firstChild.textContent = m === 'list' ? '다음 발표자 ' : '발표자 뽑기 ';
+}
+document.querySelectorAll('#orderMode button').forEach(b => b.addEventListener('click', e => {
+  e.currentTarget.blur(); if (drawing) return;
+  try { localStorage.setItem(orderKey(), b.dataset.o); } catch (err) {}
+  drawIdle();
+}));
 function drawIdle() {
   stagebox.className = 'stagebox'; idle.hidden = false; reelBox.hidden = true; reveal.hidden = true; $('#qrReveal').hidden = true;
-  $('#idleMeta').textContent = `남은 발표자 ${poolOf().length}명 · 발표 순서 ${pad(CLS.progress.order.length + 1)}번`;
+  syncOrderMode();
+  const n = poolOf().length, nextUp = orderMode() === 'list' && n ? ` · 다음 차례 ${listPool()[0]}` : '';
+  $('#idleMeta').textContent = `남은 발표자 ${n}명 · 발표 순서 ${pad(CLS.progress.order.length + 1)}번${nextUp}`;
 }
 function randInt(n) { if (n <= 1) return 0; const a = new Uint32Array(1), lim = Math.floor(0x100000000 / n) * n; let x; do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim); return x % n; }
 function startDraw() {
   const pool = poolOf();
   if (drawing || !pool.length) return;
   drawing = true; syncStageHeader(); Sound.unlock();
-  const pick = pool[randInt(pool.length)];
-  const N = reduceMotion() ? 6 : (pool.length === 1 ? 10 : 30);
+  const inOrder = orderMode() === 'list';
+  const pick = inOrder ? listPool()[0] : pool[randInt(pool.length)];
+  const di = deferred.indexOf(pick); if (di >= 0) deferred.splice(di, 1);
+  const N = reduceMotion() ? 6 : (pool.length === 1 || inOrder ? 10 : 30);
   const seq = []; let prev = null;
   for (let i = 0; i < N - 1; i++) { let n = pool[randInt(pool.length)]; if (pool.length > 1) while (n === prev) n = pool[randInt(pool.length)]; seq.push(n); prev = n; }
   if (pool.length > 1) while (seq[seq.length - 1] === pick) seq[seq.length - 1] = pool[randInt(pool.length)];
@@ -1117,7 +1139,7 @@ function showRevealed(e, animate) {
 function afterPerson() { if (!poolOf().length) { renderDone(); showScreen('done'); } else { drawIdle(); showScreen('draw'); } }
 $('#drawBtn').addEventListener('click', e => { e.currentTarget.blur(); startDraw(); });
 $('#toStage').addEventListener('click', e => { e.currentTarget.blur(); startCountdown(); });
-$('#laterBtn').addEventListener('click', () => { if (!curEntry()) return; CLS.progress.order.pop(); persist(); drawIdle(); syncStageHeader(); });
+$('#laterBtn').addEventListener('click', () => { const e = curEntry(); if (!e) return; CLS.progress.order.pop(); if (!deferred.includes(e.name)) deferred.push(e.name); persist(); drawIdle(); syncStageHeader(); });
 $('#absentBtn').addEventListener('click', () => { const e = curEntry(); if (!e) return; CLS.progress.order.pop(); CLS.progress.absent.push(e.name); persist(); afterPerson(); });
 
 /* countdown */
